@@ -1,0 +1,57 @@
+<section class="hero">
+  <div class="container hero-inner">
+    <span class="tag">Independent Citizen Guide</span>
+    <h1>Get your Bangladesh government paperwork done, step by step.</h1>
+    <p class="lede">
+      Clear, plain-language guides for driving licences, passports, National ID, birth
+      certificates and trade licences — the documents you need, the offices to visit, and what
+      each one actually costs.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" routerLink="/guides">Browse all guides</a>
+      <a class="btn btn-outline" routerLink="/register">Create a free account</a>
+    </div>
+  </div>
+</section>
+
+<section class="container">
+  <div class="section-head">
+    <h2>Popular guides</h2>
+    <a routerLink="/guides">View all &rarr;</a>
+  </div>
+
+  <div class="guide-grid">
+    @for (guide of guides(); track guide.slug) {
+      <a class="card guide-card" [routerLink]="['/guides', guide.slug]">
+        <span class="tag">{{ guide.category }}</span>
+        <h3>{{ guide.title }}</h3>
+        <p>{{ guide.summary }}</p>
+        @if (guide.processingTime) {
+          <span class="meta">⏱ {{ guide.processingTime }}</span>
+        }
+      </a>
+    } @empty {
+      <p>Loading guides…</p>
+    }
+  </div>
+</section>
+
+<section class="container">
+  <div class="section-head">
+    <h2>From the blog</h2>
+    <a routerLink="/blog">View all &rarr;</a>
+  </div>
+
+  <div class="post-grid">
+    @for (post of posts(); track post.slug) {
+      <a class="card post-card" [routerLink]="['/blog', post.slug]">
+        <h3>{{ post.title }}</h3>
+        <p>{{ post.excerpt }}</p>
+      </a>
+    } @empty {
+      @if (!loading()) {
+        <p>No posts yet.</p>
+      }
+    }
+  </div>
+</section>

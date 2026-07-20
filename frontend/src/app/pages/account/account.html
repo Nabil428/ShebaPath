@@ -1,0 +1,30 @@
+<section class="container page">
+  <span class="tag">My account</span>
+  <h1>Hello, {{ user()?.fullName }}</h1>
+  <p class="lede">{{ user()?.email }} · Member since {{ user()?.createdAt | date: 'longDate' }}</p>
+
+  <div class="card form-card">
+    @if (savedMessage()) {
+      <div class="success-banner">{{ savedMessage() }}</div>
+    }
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="field">
+        <label for="fullName">Full name</label>
+        <input id="fullName" type="text" formControlName="fullName" />
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" type="tel" formControlName="phone" />
+      </div>
+      <button class="btn btn-primary" type="submit" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : 'Save changes' }}
+      </button>
+    </form>
+  </div>
+
+  <button class="btn btn-outline" type="button" (click)="logout()">Log out</button>
+</section>

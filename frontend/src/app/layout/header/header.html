@@ -1,0 +1,23 @@
+<header class="site-header">
+  <div class="container bar">
+    <a class="brand" routerLink="/">
+      <span class="brand-mark">🇧🇩</span>
+      <span class="brand-text">
+        <strong>Sheba<span class="accent">Path</span></strong>
+        <small>Bangladesh Government Service Guides</small>
+      </span>
+    </a>
+
+    <nav class="nav">
+      <a routerLink="/guides" routerLinkActive="active">Guides</a>
+      <a routerLink="/blog" routerLinkActive="active">Blog</a>
+      @if (auth.isAuthenticated()) {
+        <a routerLink="/account" routerLinkActive="active">Account</a>
+        <button class="btn btn-outline" type="button" (click)="logout()">Log out</button>
+      } @else {
+        <a routerLink="/login" routerLinkActive="active">Log in</a>
+        <a class="btn btn-primary" routerLink="/register">Register</a>
+      }
+    </nav>
+  </div>
+</header>

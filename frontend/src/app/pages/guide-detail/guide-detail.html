@@ -1,0 +1,56 @@
+@if (loading()) {
+  <div class="container page"><p>Loading guide…</p></div>
+} @else if (notFound()) {
+  <div class="container page">
+    <h1>Guide not found</h1>
+    <p>We couldn't find that guide. <a routerLink="/guides">Browse all guides</a>.</p>
+  </div>
+} @else if (guide()) {
+  <section class="container page">
+    <a class="back-link" routerLink="/guides">&larr; All guides</a>
+    <span class="tag">{{ guide()!.category }}</span>
+    <h1>{{ guide()!.title }}</h1>
+    <p class="lede">{{ guide()!.summary }}</p>
+
+    <div class="fact-row">
+      @if (guide()!.fees) {
+        <div class="fact card">
+          <span class="fact-label">Fees</span>
+          <span>{{ guide()!.fees }}</span>
+        </div>
+      }
+      @if (guide()!.processingTime) {
+        <div class="fact card">
+          <span class="fact-label">Processing time</span>
+          <span>{{ guide()!.processingTime }}</span>
+        </div>
+      }
+      @if (guide()!.office) {
+        <div class="fact card">
+          <span class="fact-label">Where to go</span>
+          <span>{{ guide()!.office }}</span>
+        </div>
+      }
+    </div>
+
+    <div class="content-grid">
+      <div class="card block">
+        <h2>Steps to apply</h2>
+        <ol>
+          @for (step of guide()!.steps; track $index) {
+            <li>{{ step }}</li>
+          }
+        </ol>
+      </div>
+
+      <div class="card block">
+        <h2>What you'll need</h2>
+        <ul>
+          @for (req of guide()!.requirements; track $index) {
+            <li>{{ req }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  </section>
+}

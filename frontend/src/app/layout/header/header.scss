@@ -1,0 +1,93 @@
+.site-header {
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  gap: 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-ink);
+
+  &:hover {
+    text-decoration: none;
+  }
+}
+
+.brand-mark {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+
+  strong {
+    font-size: 1.05rem;
+    color: var(--color-green-900);
+  }
+
+  .accent {
+    color: var(--color-green-600);
+  }
+
+  small {
+    font-size: 0.7rem;
+    color: var(--color-ink-soft);
+  }
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+
+  a {
+    color: var(--color-ink);
+    font-weight: 600;
+    font-size: 0.92rem;
+
+    &:hover {
+      color: var(--color-green-700);
+      text-decoration: none;
+    }
+
+    &.active {
+      color: var(--color-green-700);
+    }
+  }
+
+  .btn {
+    font-size: 0.88rem;
+    padding: 8px 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .bar {
+    height: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px 20px;
+    gap: 12px;
+  }
+
+  .nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

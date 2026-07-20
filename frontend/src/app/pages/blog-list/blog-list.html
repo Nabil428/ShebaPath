@@ -1,0 +1,19 @@
+<section class="container page">
+  <span class="tag">Blog</span>
+  <h1>Tips &amp; updates</h1>
+  <p class="lede">Practical advice for navigating Bangladesh's government services.</p>
+
+  @if (loading()) {
+    <p>Loading posts…</p>
+  } @else {
+    <div class="post-list">
+      @for (post of posts(); track post.slug) {
+        <a class="card post-card" [routerLink]="['/blog', post.slug]">
+          <h3>{{ post.title }}</h3>
+          <p>{{ post.excerpt }}</p>
+          <span class="date">{{ post.publishedAt | date: 'longDate' }}</span>
+        </a>
+      }
+    </div>
+  }
+</section>

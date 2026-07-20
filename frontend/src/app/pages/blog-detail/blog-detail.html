@@ -1,0 +1,15 @@
+@if (loading()) {
+  <div class="container page"><p>Loading post…</p></div>
+} @else if (notFound()) {
+  <div class="container page">
+    <h1>Post not found</h1>
+    <p>We couldn't find that post. <a routerLink="/blog">Back to the blog</a>.</p>
+  </div>
+} @else if (post()) {
+  <article class="container page">
+    <a class="back-link" routerLink="/blog">&larr; All posts</a>
+    <span class="date">{{ post()!.publishedAt | date: 'longDate' }}</span>
+    <h1>{{ post()!.title }}</h1>
+    <p class="body">{{ post()!.content }}</p>
+  </article>
+}

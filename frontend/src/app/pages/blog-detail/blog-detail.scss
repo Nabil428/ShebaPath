@@ -1,0 +1,24 @@
+.page {
+  padding: 40px 0 64px;
+  max-width: 680px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 16px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.date {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  margin-bottom: 6px;
+}
+
+.body {
+  font-size: 1.02rem;
+  line-height: 1.75;
+  white-space: pre-line;
+}

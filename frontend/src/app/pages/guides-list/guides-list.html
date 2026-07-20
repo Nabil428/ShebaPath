@@ -1,0 +1,27 @@
+<section class="container page">
+  <span class="tag">Guides</span>
+  <h1>All service guides</h1>
+  <p class="lede">Everything you need to know, organized by service.</p>
+
+  @if (loading()) {
+    <p>Loading guides…</p>
+  } @else {
+    <div class="guide-grid">
+      @for (guide of guides(); track guide.slug) {
+        <a class="card guide-card" [routerLink]="['/guides', guide.slug]">
+          <span class="tag">{{ guide.category }}</span>
+          <h3>{{ guide.title }}</h3>
+          <p>{{ guide.summary }}</p>
+          <div class="meta-row">
+            @if (guide.fees) {
+              <span>💰 {{ guide.fees }}</span>
+            }
+            @if (guide.processingTime) {
+              <span>⏱ {{ guide.processingTime }}</span>
+            }
+          </div>
+        </a>
+      }
+    </div>
+  }
+</section>

@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/public/browser",
+  "rewrites": [
+    { "source": "/bd-services/api/:path*", "destination": "https://sheba-path.onrender.com/bd-services/api/:path*" },
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/bd-services", "destination": "/index.html" },
+    { "source": "/bd-services/:path*", "destination": "/:path*" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
+}

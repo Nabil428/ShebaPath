@@ -3,6 +3,8 @@
 Government-service guide website for Bangladesh (driving licence, passport,
 NID, birth certificate, trade licence guides + a small blog + account system).
 
+<h3><a href:"https://shebapath.vercel.app/bd-services/"></a></h3>
+
 ## Structure
 
 - `frontend/` — Angular 20 app (standalone components, signals)

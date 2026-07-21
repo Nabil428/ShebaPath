@@ -180,3 +180,20 @@ body {
 .skiptranslate {
   display: none !important;
 }
+
+// Better rendering for Bangla text (site's own Bengali content, and text
+// injected by the Google Translate widget) — force the Hind Siliguri font
+// and give it more line-height, since Bangla conjuncts need extra vertical
+// space to stay readable.
+:lang(bn),
+font[style*='vertical-align'] {
+  font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif !important;
+  line-height: 1.85 !important;
+  letter-spacing: 0 !important;
+}
+
+html.translated-ltr body,
+html.translated-rtl body {
+  font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
+  line-height: 1.85;
+}

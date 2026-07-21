@@ -45,9 +45,18 @@ export const routes: Routes = [
     canActivate: [authGuard],
     title: 'My Account — ShebaPath',
   },
+
+  {
+    path: 'privacy',
+    loadComponent:() => import('./pages/privacy-policy/privacy-policy').then((m) => m.PrivacyPolicyPage),
+    title: 'Privacy Policy - ShebaPath',
+  },
+
   {
     path: '**',
     loadComponent: () => import('./pages/not-found/not-found').then((m) => m.NotFoundPage),
     title: 'Page not found — ShebaPath',
   },
+
+
 ];

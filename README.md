@@ -3,7 +3,13 @@
 Government-service guide website for Bangladesh (driving licence, passport,
 NID, birth certificate, trade licence guides + a small blog + account system).
 
-<h3><a href:"https://shebapath.vercel.app/bd-services/">Live Link</a></h3>
+<h3>
+    <a href="https://shebapath.vercel.app/bd-services/"
+       target="_blank"
+       rel="noopener noreferrer">
+        Live Site
+    </a>
+</h3>
 
 ## Structure
 

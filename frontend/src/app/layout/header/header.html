@@ -18,6 +18,9 @@
         <a routerLink="/login" routerLinkActive="active">Log in</a>
         <a class="btn btn-primary" routerLink="/register">Register</a>
       }
+      <button class="btn btn-outline notranslate" type="button" (click)="toogleLanguage()">
+        {{ isBangla ? 'View in English' : 'বাংলায় দেখুন' }}
+      </button>
     </nav>
   </div>
 </header>

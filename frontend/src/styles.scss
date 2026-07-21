@@ -166,3 +166,17 @@ button {
   border-radius: 999px;
   padding: 4px 10px;
 }
+
+// Google Translate: hide its default top banner/iframe so our own
+// "বাংলায় দেখুন" button is the only visible translation control.
+.goog-te-banner-frame,
+#goog-gt-tt,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}
+.skiptranslate {
+  display: none !important;
+}

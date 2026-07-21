@@ -13,6 +13,21 @@ export class HeaderComponent {
   protected readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 
+  protected get isBangla(): boolean {
+    return document.cookie.includes('googtrans=/en/bn');
+  }
+
+  toogleLanguage():void {
+    if (this.isBangla) {
+      document.cookie = 'googtrans=/en/en; path=/;';
+    }
+    else {
+      document.cookie = 'googtrans=/en/bn; path=/;';
+    }
+    window.location.reload();
+    }
+  
+
   logout(): void {
     this.auth.logout().subscribe(() => this.router.navigate(['/']));
   }

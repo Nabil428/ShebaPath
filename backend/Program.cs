@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using BCrypt.Net;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.RateLimiting;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +34,19 @@ builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionStringBuilde
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Rate limiting: max 10 requests per minute per client IP for login/register,
+// to slow down brute-force / credential-stuffing attempts.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.PermitLimit = 10;
+        limiterOptions.QueueLimit = 0;
+    });
+});
+
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -39,7 +54,7 @@ builder.Services
         options.Cookie.Name = "bd_session";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
-        options.Cookie.SecurePolicy = CookieSecurePolicy.None;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
         options.SlidingExpiration = true;
         options.Events.OnRedirectToLogin = context =>
@@ -58,12 +73,18 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
+// Swagger is opt-in via env var so it isn't publicly exposed by default in
+// production. Set ENABLE_SWAGGER=true on Render if you need it temporarily.
+var swaggerEnabled = app.Environment.IsDevelopment()
+    || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
+
+if (swaggerEnabled)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -114,7 +135,7 @@ auth.MapPost("/register", async (RegisterRequest req, NpgsqlDataSource db, HttpC
     {
         return Results.Conflict(new { error = "An account with this email already exists." });
     }
-});
+}).RequireRateLimiting("auth");
 
 auth.MapPost("/login", async (LoginRequest req, NpgsqlDataSource db, HttpContext http) =>
 {
@@ -146,7 +167,7 @@ auth.MapPost("/login", async (LoginRequest req, NpgsqlDataSource db, HttpContext
     var user = ReadUser(reader);
     await SignInUser(http, user);
     return Results.Ok(user);
-});
+}).RequireRateLimiting("auth");
 
 auth.MapPost("/logout", async (HttpContext http) =>
 {

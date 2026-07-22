@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { BlogService } from '../../core/services/blog.service';
+import { PdfExportService } from '../../core/services/pdf-export.service';
 import { BlogDetail } from '../../core/models/models';
 
 @Component({
@@ -15,6 +16,7 @@ import { BlogDetail } from '../../core/models/models';
 export class BlogDetailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly blogService = inject(BlogService);
+  private readonly pdfExport = inject(PdfExportService);
 
   readonly post = signal<BlogDetail | null>(null);
   readonly notFound = signal(false);
@@ -33,5 +35,12 @@ export class BlogDetailPage implements OnInit {
           this.loading.set(false);
         },
       });
+  }
+
+  downloadPdf(): void {
+    const post = this.post();
+    if (post) {
+      this.pdfExport.exportBlogPost(post);
+    }
   }
 }

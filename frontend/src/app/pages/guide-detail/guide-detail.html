@@ -8,9 +8,15 @@
 } @else if (guide()) {
   <section class="container page">
     <a class="back-link" routerLink="/guides">&larr; All guides</a>
-    <span class="tag">{{ guide()!.category }}</span>
+    <div class="top-row">
+      <span class="tag">{{ guide()!.category }}</span>
+      <button class="btn btn-outline notranslate" type="button" (click)="downloadPdf()">
+        ⬇ Download as PDF
+      </button>
+    </div>
     <h1>{{ guide()!.title }}</h1>
     <p class="lede">{{ guide()!.summary }}</p>
+    <p class="verified-note">✓ Last verified {{ guide()!.lastVerified | date: 'longDate' }}</p>
 
     <div class="fact-row">
       @if (guide()!.fees) {

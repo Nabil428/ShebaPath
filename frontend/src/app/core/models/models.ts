@@ -15,6 +15,7 @@ export interface GuideSummary {
   processingTime: string | null;
   office: string | null;
   publishedAt: string;
+  lastVerified: string;
 }
 
 export interface GuideDetail extends GuideSummary {

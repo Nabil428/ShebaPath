@@ -69,3 +69,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+.top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.verified-note {
+  color: var(--color-green-700, #0a6b3e);
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-top: -4px;
+  margin-bottom: 8px;
+}

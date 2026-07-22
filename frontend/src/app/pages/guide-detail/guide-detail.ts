@@ -1,19 +1,22 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { GuidesService } from '../../core/services/guides.service';
+import { PdfExportService } from '../../core/services/pdf-export.service';
 import { GuideDetail } from '../../core/models/models';
 
 @Component({
   selector: 'app-guide-detail',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, DatePipe],
   templateUrl: './guide-detail.html',
   styleUrl: './guide-detail.scss',
 })
 export class GuideDetailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly guidesService = inject(GuidesService);
+  private readonly pdfExport = inject(PdfExportService);
 
   readonly guide = signal<GuideDetail | null>(null);
   readonly notFound = signal(false);
@@ -32,5 +35,12 @@ export class GuideDetailPage implements OnInit {
           this.loading.set(false);
         },
       });
+  }
+
+  downloadPdf(): void {
+    const guide = this.guide();
+    if (guide) {
+      this.pdfExport.exportGuide(guide);
+    }
   }
 }

@@ -3,11 +3,20 @@
   <h1>All service guides</h1>
   <p class="lede">Everything you need to know, organized by service.</p>
 
+  <input
+    type="search"
+    class="search-input notranslate"
+    placeholder="Search guides by name, category or keyword…"
+    (input)="onSearchInput($event)"
+  />
+
   @if (loading()) {
     <p>Loading guides…</p>
+  } @else if (filtered().length === 0) {
+    <p class="empty-note">No guides match "{{ searchTerm() }}".</p>
   } @else {
     <div class="guide-grid">
-      @for (guide of guides(); track guide.slug) {
+      @for (guide of pageItems(); track guide.slug) {
         <a class="card guide-card" [routerLink]="['/guides', guide.slug]">
           <span class="tag">{{ guide.category }}</span>
           <h3>{{ guide.title }}</h3>
@@ -23,5 +32,19 @@
         </a>
       }
     </div>
+
+    @if (totalPages() > 1) {
+      <nav class="pagination notranslate" aria-label="Guide pages">
+        <button type="button" [disabled]="page() === 1" (click)="goToPage(page() - 1)">‹ Prev</button>
+        @for (n of pageNumbers(); track n) {
+          <button type="button" class="page-btn" [class.active]="n === page()" (click)="goToPage(n)">
+            {{ n }}
+          </button>
+        }
+        <button type="button" [disabled]="page() === totalPages()" (click)="goToPage(page() + 1)">
+          Next ›
+        </button>
+      </nav>
+    }
   }
 </section>

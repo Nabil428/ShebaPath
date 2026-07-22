@@ -1,7 +1,9 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { GuidesService } from '../../core/services/guides.service';
 import { GuideSummary } from '../../core/models/models';
+
+const PAGE_SIZE = 6;
 
 @Component({
   selector: 'app-guides-list',
@@ -15,11 +17,46 @@ export class GuidesListPage implements OnInit {
 
   readonly guides = signal<GuideSummary[]>([]);
   readonly loading = signal(true);
+  readonly searchTerm = signal('');
+  readonly page = signal(1);
+
+  readonly filtered = computed(() => {
+    const term = this.searchTerm().trim().toLowerCase();
+    if (!term) return this.guides();
+    return this.guides().filter(
+      (g) =>
+        g.title.toLowerCase().includes(term) ||
+        g.category.toLowerCase().includes(term) ||
+        g.summary.toLowerCase().includes(term)
+    );
+  });
+
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.filtered().length / PAGE_SIZE)));
+
+  readonly pageItems = computed(() => {
+    const start = (this.page() - 1) * PAGE_SIZE;
+    return this.filtered().slice(start, start + PAGE_SIZE);
+  });
+
+  readonly pageNumbers = computed(() => Array.from({ length: this.totalPages() }, (_, i) => i + 1));
 
   ngOnInit(): void {
     this.guidesService.list().subscribe((guides) => {
       this.guides.set(guides);
       this.loading.set(false);
     });
+  }
+
+  onSearchInput(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.searchTerm.set(value);
+    this.page.set(1);
+  }
+
+  goToPage(n: number): void {
+    if (n >= 1 && n <= this.totalPages()) {
+      this.page.set(n);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
 }

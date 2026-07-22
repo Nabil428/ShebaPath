@@ -3,11 +3,20 @@
   <h1>Tips &amp; updates</h1>
   <p class="lede">Practical advice for navigating Bangladesh's government services.</p>
 
+  <input
+    type="search"
+    class="search-input notranslate"
+    placeholder="Search posts by title or keyword…"
+    (input)="onSearchInput($event)"
+  />
+
   @if (loading()) {
     <p>Loading posts…</p>
+  } @else if (filtered().length === 0) {
+    <p class="empty-note">No posts match "{{ searchTerm() }}".</p>
   } @else {
     <div class="post-list">
-      @for (post of posts(); track post.slug) {
+      @for (post of pageItems(); track post.slug) {
         <a class="card post-card" [routerLink]="['/blog', post.slug]">
           <h3>{{ post.title }}</h3>
           <p>{{ post.excerpt }}</p>
@@ -15,5 +24,19 @@
         </a>
       }
     </div>
+
+    @if (totalPages() > 1) {
+      <nav class="pagination notranslate" aria-label="Blog pages">
+        <button type="button" [disabled]="page() === 1" (click)="goToPage(page() - 1)">‹ Prev</button>
+        @for (n of pageNumbers(); track n) {
+          <button type="button" class="page-btn" [class.active]="n === page()" (click)="goToPage(n)">
+            {{ n }}
+          </button>
+        }
+        <button type="button" [disabled]="page() === totalPages()" (click)="goToPage(page() + 1)">
+          Next ›
+        </button>
+      </nav>
+    }
   }
 </section>

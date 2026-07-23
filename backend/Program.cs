@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.RateLimiting;
 using Npgsql;
+using BdServices.Api.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -613,6 +614,34 @@ app.MapPut($"{apiBase}/admin/categories/{{id:int}}", async (
 })
 .RequireAuthorization();
 
+app.MapGet($"{apiBase}/admin/dashboard", async (NpgsqlDataSource db) =>
+{
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(@"
+SELECT
+    (SELECT COUNT(*) FROM bd_users) AS total_users,
+    (SELECT COUNT(*) FROM bd_guides) AS total_guides,
+    (SELECT COUNT(*) FROM bd_blog_posts) AS total_blogs,
+    (SELECT COUNT(*) FROM bookmarks) AS total_bookmarks;
+", conn);
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+
+    if (await reader.ReadAsync())
+    {
+        return Results.Ok(new
+        {
+            totalUsers = reader.GetInt32(0),
+            totalGuides = reader.GetInt32(1),
+            totalBlogs = reader.GetInt32(2),
+            totalBookmarks = reader.GetInt32(3)
+        });
+    }
+
+    return Results.Ok();
+}).RequireAuthorization();
+
 app.MapDelete($"{apiBase}/admin/categories/{{id:int}}", async (
     int id,
     HttpContext http,
@@ -750,6 +779,398 @@ app.MapDelete($"{apiBase}/admin/tags/{{id:int}}", async (
 
 })
 .RequireAuthorization();
+
+app.MapGet($"{apiBase}/admin/hero-slides", async (
+    HttpContext http,
+    NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    List<object> slides = [];
+
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(@"
+        SELECT
+            id,
+            guide_id,
+            image_url,
+            title,
+            subtitle,
+            button_text,
+            button_link,
+            display_order,
+            is_active
+        FROM hero_slides
+        ORDER BY display_order ASC;
+    ", conn);
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        slides.Add(new
+        {
+            Id = reader.GetInt32(0),
+            GuideId = reader.GetInt32(1),
+            ImageUrl = reader.GetString(2),
+            Title = reader.GetString(3),
+            Subtitle = reader.IsDBNull(4) ? "" : reader.GetString(4),
+            ButtonText = reader.IsDBNull(5) ? "" : reader.GetString(5),
+            ButtonLink = reader.IsDBNull(6) ? "" : reader.GetString(6),
+            DisplayOrder = reader.GetInt32(7),
+            IsActive = reader.GetBoolean(8)
+        });
+    }
+
+    return Results.Ok(slides);
+
+}).RequireAuthorization();
+
+app.MapGet($"{apiBase}/admin/hero-slides", async (
+    HttpContext http,
+    NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    List<object> slides = [];
+
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(@"
+        SELECT
+            id,
+            guide_id,
+            image_url,
+            title,
+            subtitle,
+            button_text,
+            button_link,
+            display_order,
+            is_active
+        FROM hero_slides
+        ORDER BY display_order ASC;
+    ", conn);
+
+    await using var reader = await cmd.ExecuteReaderAsync();
+
+    while (await reader.ReadAsync())
+    {
+        slides.Add(new
+        {
+            Id = reader.GetInt32(0),
+            GuideId = reader.GetInt32(1),
+            ImageUrl = reader.GetString(2),
+            Title = reader.GetString(3),
+            Subtitle = reader.IsDBNull(4) ? "" : reader.GetString(4),
+            ButtonText = reader.IsDBNull(5) ? "" : reader.GetString(5),
+            ButtonLink = reader.IsDBNull(6) ? "" : reader.GetString(6),
+            DisplayOrder = reader.GetInt32(7),
+            IsActive = reader.GetBoolean(8)
+        });
+    }
+
+    return Results.Ok(slides);
+
+}).RequireAuthorization();
+
+app.MapPut($"{apiBase}/admin/hero-slides/{{id:int}}", async (
+    int id,
+    HttpContext http,
+    HeroSlideDto dto,
+    NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(@"
+        UPDATE hero_slides
+        SET
+            guide_id=@guideId,
+            image_url=@imageUrl,
+            title=@title,
+            subtitle=@subtitle,
+            button_text=@buttonText,
+            button_link=@buttonLink,
+            display_order=@displayOrder,
+            is_active=@isActive
+        WHERE id=@id;
+    ", conn);
+
+    cmd.Parameters.AddWithValue("id", id);
+    cmd.Parameters.AddWithValue("guideId", dto.GuideId);
+    cmd.Parameters.AddWithValue("imageUrl", dto.ImageUrl);
+    cmd.Parameters.AddWithValue("title", dto.Title);
+    cmd.Parameters.AddWithValue("subtitle", (object?)dto.Subtitle ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("buttonText", (object?)dto.ButtonText ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("buttonLink", (object?)dto.ButtonLink ?? DBNull.Value);
+    cmd.Parameters.AddWithValue("displayOrder", dto.DisplayOrder);
+    cmd.Parameters.AddWithValue("isActive", dto.IsActive);
+
+    var rows = await cmd.ExecuteNonQueryAsync();
+
+    if (rows == 0)
+        return Results.NotFound();
+
+    return Results.Ok(new
+    {
+        message = "Hero slide updated successfully."
+    });
+
+}).RequireAuthorization();
+
+app.MapDelete($"{apiBase}/admin/hero-slides/{{id:int}}", async (
+    int id,
+    HttpContext http,
+    NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(
+        "DELETE FROM hero_slides WHERE id=@id;", conn);
+
+    cmd.Parameters.AddWithValue("id", id);
+
+    var rows = await cmd.ExecuteNonQueryAsync();
+
+    if (rows == 0)
+        return Results.NotFound();
+
+    return Results.Ok(new
+    {
+        message = "Hero slide deleted successfully."
+    });
+
+}).RequireAuthorization();
+
+app.MapPost($"{apiBase}/admin/upload", async (
+    HttpContext http,
+    IWebHostEnvironment env) =>
+{
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    var form = await http.Request.ReadFormAsync();
+
+    var file = form.Files.FirstOrDefault();
+
+    if (file == null || file.Length == 0)
+        return Results.BadRequest("No file uploaded.");
+
+    var uploadsPath = Path.Combine(env.WebRootPath, "uploads");
+
+    if (!Directory.Exists(uploadsPath))
+        Directory.CreateDirectory(uploadsPath);
+
+    var extension = Path.GetExtension(file.FileName);
+
+    var fileName = $"{Guid.NewGuid()}{extension}";
+
+    var filePath = Path.Combine(uploadsPath, fileName);
+
+    await using var stream = File.Create(filePath);
+
+    await file.CopyToAsync(stream);
+
+    var imageUrl =
+        $"{http.Request.Scheme}://{http.Request.Host}/uploads/{fileName}";
+
+    return Results.Ok(new
+    {
+        imageUrl
+    });
+
+})
+.RequireAuthorization();
+
+app.MapPost($"{apiBase}/admin/guides", async (
+
+    HttpContext http,
+
+    GuideEditorDto dto,
+
+    NpgsqlDataSource db) =>
+{
+
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(@"
+
+INSERT INTO bd_guides(
+
+title,
+
+slug,
+
+summary,
+
+content,
+
+category_id,
+
+featured_image,
+
+keywords,
+
+meta_description,
+
+is_featured,
+
+is_published
+
+)
+
+VALUES(
+
+@title,
+
+@slug,
+
+@summary,
+
+@content,
+
+@category,
+
+@image,
+
+@keywords,
+
+@meta,
+
+@featured,
+
+@published
+
+)
+
+RETURNING id;
+
+", conn);
+
+    cmd.Parameters.AddWithValue("title", dto.Title);
+    cmd.Parameters.AddWithValue("slug", dto.Slug);
+    cmd.Parameters.AddWithValue("summary", dto.Summary);
+    cmd.Parameters.AddWithValue("content", dto.Content);
+    cmd.Parameters.AddWithValue("category", dto.CategoryId);
+
+    cmd.Parameters.AddWithValue("image",
+        (object?)dto.FeaturedImage ?? DBNull.Value);
+
+    cmd.Parameters.AddWithValue("keywords",
+        (object?)dto.Keywords ?? DBNull.Value);
+
+    cmd.Parameters.AddWithValue("meta",
+        (object?)dto.MetaDescription ?? DBNull.Value);
+
+    cmd.Parameters.AddWithValue("featured", dto.IsFeatured);
+
+    cmd.Parameters.AddWithValue("published", dto.IsPublished);
+
+    var id = (int)(await cmd.ExecuteScalarAsync())!;
+
+    return Results.Ok(new
+    {
+
+        id,
+
+        message = "Guide created."
+
+    });
+
+}).RequireAuthorization();
+
+app.MapPut($"{apiBase}/admin/guides/{{id:int}}", async (
+
+int id,
+
+HttpContext http,
+
+GuideEditorDto dto,
+
+NpgsqlDataSource db) =>
+{
+
+    if (!IsAdmin(http))
+        return Forbidden();
+
+    await using var conn = await db.OpenConnectionAsync();
+
+    var cmd = new NpgsqlCommand(@"
+
+UPDATE bd_guides
+
+SET
+
+title=@title,
+
+slug=@slug,
+
+summary=@summary,
+
+content=@content,
+
+category_id=@category,
+
+featured_image=@image,
+
+keywords=@keywords,
+
+meta_description=@meta,
+
+is_featured=@featured,
+
+is_published=@published,
+
+updated_at=CURRENT_TIMESTAMP
+
+WHERE id=@id;
+
+", conn);
+
+    cmd.Parameters.AddWithValue("id", id);
+
+    cmd.Parameters.AddWithValue("title", dto.Title);
+
+    cmd.Parameters.AddWithValue("slug", dto.Slug);
+
+    cmd.Parameters.AddWithValue("summary", dto.Summary);
+
+    cmd.Parameters.AddWithValue("content", dto.Content);
+
+    cmd.Parameters.AddWithValue("category", dto.CategoryId);
+
+    cmd.Parameters.AddWithValue("image",
+    (object?)dto.FeaturedImage ?? DBNull.Value);
+
+    cmd.Parameters.AddWithValue("keywords",
+    (object?)dto.Keywords ?? DBNull.Value);
+
+    cmd.Parameters.AddWithValue("meta",
+    (object?)dto.MetaDescription ?? DBNull.Value);
+
+    cmd.Parameters.AddWithValue("featured", dto.IsFeatured);
+
+    cmd.Parameters.AddWithValue("published", dto.IsPublished);
+
+    await cmd.ExecuteNonQueryAsync();
+
+    return Results.Ok();
+
+}).RequireAuthorization();
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.Run();
 
 static UserResponse ReadUser(NpgsqlDataReader reader) => new(
@@ -785,3 +1206,25 @@ record AdminGuideRequest(
 record AdminBlogRequest(
     string Slug, string Title, string Excerpt, string Content,
     string? CoverImageUrl, List<string>? Tags);
+record TagDto(string Name, string Slug);
+record CategoryDto(string Name, string Slug, string? Description);
+record HeroSlideDto(
+    int GuideId,
+    string ImageUrl,
+    string Title,
+    string? Subtitle,
+    string? ButtonText,
+    string? ButtonLink,
+    int DisplayOrder,
+    bool IsActive);
+record GuideEditorDto(
+    string Title,
+    string Slug,
+    string Summary,
+    string Content,
+    int CategoryId,
+    string? FeaturedImage,
+    string? Keywords,
+    string? MetaDescription,
+    bool IsFeatured,
+    bool IsPublished);

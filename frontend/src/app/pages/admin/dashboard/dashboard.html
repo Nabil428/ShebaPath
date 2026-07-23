@@ -1,0 +1,78 @@
+@if (loading) {
+
+<div class="text-center py-5">
+    <div class="spinner-border text-primary"></div>
+</div>
+
+} @else {
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <div>
+            <h2 class="fw-bold mb-0">Admin Dashboard</h2>
+            <small class="text-muted">
+                Welcome to ShebaPath CMS
+            </small>
+        </div>
+
+        <div>
+
+            <a routerLink="/admin/guides"
+               class="btn btn-primary me-2">
+                + Guide
+            </a>
+
+            <a routerLink="/admin/blogs"
+               class="btn btn-success">
+                + Blog
+            </a>
+
+        </div>
+
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6>Total Guides</h6>
+                    <h2>{{ stats.totalGuides }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6>Total Blogs</h6>
+                    <h2>{{ stats.totalBlogs }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6>Total Users</h6>
+                    <h2>{{ stats.totalUsers }}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h6>Bookmarks</h6>
+                    <h2>{{ stats.totalBookmarks }}</h2>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+}

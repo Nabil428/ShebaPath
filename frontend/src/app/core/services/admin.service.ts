@@ -2,7 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiBase } from './api-base';
-import { AdminGuidePayload, AdminBlogPayload, Category } from '../models/models';
+import { AdminGuidePayload, AdminBlogPayload, Category, DashboardStats } from '../models/models';
+
+// Re-exported so files that import DashboardStats/Category directly from this
+// service (instead of from models.ts) still resolve correctly.
+export type { Category, DashboardStats };
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
@@ -11,6 +15,12 @@ export class AdminService {
 
   getCategories(): Observable<Category[]> {
     return this.http.get<Category[]>(this.api.endpoint('categories'));
+  }
+
+  getDashboard(): Observable<DashboardStats> {
+    return this.http.get<DashboardStats>(this.api.endpoint('admin/dashboard'), {
+      withCredentials: true,
+    });
   }
 
   createGuide(payload: AdminGuidePayload): Observable<{ success: boolean }> {

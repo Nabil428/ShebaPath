@@ -89,3 +89,11 @@ export interface AdminBlogPayload {
   coverImageUrl?: string;
   tags: string[];
 }
+
+export interface DashboardStats {
+  totalUsers: number;
+  totalGuides: number;
+  totalBlogs: number;
+  totalBookmarks: number;
+
+}

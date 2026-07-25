@@ -2,16 +2,16 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { BlogService } from '../../core/services/blog.service';
-import { TagChips } from '../../shared/tag-chips/tag-chips';
 import { BlogSummary } from '../../core/models/models';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
+import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
 
 const PAGE_SIZE = 5;
 
 @Component({
   selector: 'app-blog-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, TagChips],
+  imports: [CommonModule, RouterModule, TagChipsComponent],
   templateUrl: './blog-list.html',
   styleUrls: ['./blog-list.scss'],
 })

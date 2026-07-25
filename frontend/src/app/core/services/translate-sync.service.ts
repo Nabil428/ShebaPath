@@ -1,4 +1,4 @@
-import { Injectable } from 'angular/core';
+import { Injectable } from '@angular/core';
 
 
 /**
@@ -22,7 +22,7 @@ export class TranslateSyncService {
         combo.dispatchEvent(new Event('change'));
       }
     },150);
-    
+
 
   }
 }

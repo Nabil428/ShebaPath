@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { GuidesService } from '../../core/services/guides.service';
-import { TagChipsComponent } from '../../shared/tag-chips/tag-chips';
+import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
 import { GuideSummary } from '../../core/models/models';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
 

@@ -1,0 +1,82 @@
+<section class="container page">
+  <a class="back-link" routerLink="/admin">&larr; Dashboard</a>
+  <span class="tag">Admin</span>
+  <h1>{{ isEdit ? 'Edit guide' : 'New guide' }}</h1>
+
+  <div class="card form-card">
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="field">
+        <label for="slug">Slug (URL, lowercase, hyphens only)</label>
+        <input id="slug" type="text" formControlName="slug" placeholder="e.g. trade-licence" />
+      </div>
+      <div class="field">
+        <label for="categoryId">Category</label>
+        <select id="categoryId" formControlName="categoryId">
+          <option [value]="0" disabled>Select a category…</option>
+          @for (c of categories(); track c.id) {
+            <option [value]="c.id">{{ c.name }}</option>
+          }
+        </select>
+      </div>
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" type="text" formControlName="title" />
+      </div>
+      <div class="field">
+        <label for="summary">Summary</label>
+        <textarea id="summary" rows="2" formControlName="summary"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="fees">Fees</label>
+          <input id="fees" type="text" formControlName="fees" />
+        </div>
+        <div class="field">
+          <label for="processingTime">Processing time</label>
+          <input id="processingTime" type="text" formControlName="processingTime" />
+        </div>
+        <div class="field">
+          <label for="office">Office</label>
+          <input id="office" type="text" formControlName="office" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="tagsText">Tags (comma separated)</label>
+        <input id="tagsText" type="text" formControlName="tagsText" placeholder="transport, licence" />
+      </div>
+      <div class="field">
+        <label for="stepsText">Steps (one per line)</label>
+        <textarea id="stepsText" rows="6" formControlName="stepsText"></textarea>
+      </div>
+      <div class="field">
+        <label for="requirementsText">Requirements (one per line)</label>
+        <textarea id="requirementsText" rows="4" formControlName="requirementsText"></textarea>
+      </div>
+
+      <h3>SEO &amp; publishing</h3>
+      <div class="field">
+        <label for="featuredImage">Featured image URL (optional)</label>
+        <input id="featuredImage" type="text" formControlName="featuredImage" placeholder="https://…" />
+      </div>
+      <div class="field">
+        <label for="keywords">Keywords (comma separated, for SEO)</label>
+        <input id="keywords" type="text" formControlName="keywords" />
+      </div>
+      <div class="field">
+        <label for="metaDescription">Meta description (for Google search results)</label>
+        <textarea id="metaDescription" rows="2" formControlName="metaDescription"></textarea>
+      </div>
+      <div class="field-row checkboxes">
+        <label><input type="checkbox" formControlName="isFeatured" /> Featured on homepage</label>
+        <label><input type="checkbox" formControlName="isPublished" /> Published (visible to visitors)</label>
+      </div>
+
+      <button class="btn btn-primary" type="submit" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : 'Save guide' }}
+      </button>
+    </form>
+  </div>
+</section>

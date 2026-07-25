@@ -4,6 +4,7 @@ export interface AppUser {
   fullName: string;
   phone: string | null;
   createdAt: string;
+  isAdmin: boolean;
 }
 
 export interface GuideSummary {
@@ -16,9 +17,11 @@ export interface GuideSummary {
   office: string | null;
   publishedAt: string;
   lastVerified: string;
+  tags: string[];
 }
 
 export interface GuideDetail extends GuideSummary {
+  categoryId?: number;
   steps: string[];
   requirements: string[];
 }
@@ -29,6 +32,7 @@ export interface BlogSummary {
   excerpt: string;
   coverImageUrl: string | null;
   publishedAt: string;
+  tags: string[];
 }
 
 export interface BlogDetail extends BlogSummary {
@@ -50,4 +54,38 @@ export interface LoginPayload {
 export interface UpdateAccountPayload {
   fullName: string;
   phone?: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
+export interface AdminGuidePayload {
+  slug: string;
+  categoryId: number;
+  title: string;
+  summary: string;
+  steps: string[];
+  requirements: string[];
+  fees?: string;
+  processingTime?: string;
+  office?: string;
+  featuredImage?: string;
+  keywords?: string;
+  metaDescription?: string;
+  isFeatured: boolean;
+  isPublished: boolean;
+  tags: string[];
+}
+
+export interface AdminBlogPayload {
+  slug: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  coverImageUrl?: string;
+  tags: string[];
 }

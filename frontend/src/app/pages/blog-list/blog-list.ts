@@ -1,20 +1,23 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { BlogService } from '../../core/services/blog.service';
+import { TagChips } from '../../shared/tag-chips/tag-chips';
 import { BlogSummary } from '../../core/models/models';
+import { TranslateSyncService } from '../../core/services/translate-sync.service';
 
 const PAGE_SIZE = 5;
 
 @Component({
   selector: 'app-blog-list',
   standalone: true,
-  imports: [RouterLink, DatePipe],
+  imports: [CommonModule, RouterModule, TagChips],
   templateUrl: './blog-list.html',
-  styleUrl: './blog-list.scss',
+  styleUrls: ['./blog-list.scss'],
 })
 export class BlogListPage implements OnInit {
   private readonly blogService = inject(BlogService);
+  private readonly translateSync = inject(TranslateSyncService);
 
   readonly posts = signal<BlogSummary[]>([]);
   readonly loading = signal(true);
@@ -42,6 +45,7 @@ export class BlogListPage implements OnInit {
     this.blogService.list().subscribe((posts) => {
       this.posts.set(posts);
       this.loading.set(false);
+      this.translateSync.resync();
     });
   }
 
@@ -49,12 +53,14 @@ export class BlogListPage implements OnInit {
     const value = (event.target as HTMLInputElement).value;
     this.searchTerm.set(value);
     this.page.set(1);
+    this.translateSync.resync();
   }
 
   goToPage(n: number): void {
     if (n >= 1 && n <= this.totalPages()) {
       this.page.set(n);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      this.translateSync.resync();
     }
   }
 }

@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.RateLimiting;
 using Npgsql;
-using BdServices.Api.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,8 +34,6 @@ builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionStringBuilde
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Rate limiting: max 10 requests per minute per client IP for login/register,
-// to slow down brute-force / credential-stuffing attempts.
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -74,8 +71,6 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Swagger is opt-in via env var so it isn't publicly exposed by default in
-// production. Set ENABLE_SWAGGER=true on Render if you need it temporarily.
 var swaggerEnabled = app.Environment.IsDevelopment()
     || string.Equals(Environment.GetEnvironmentVariable("ENABLE_SWAGGER"), "true", StringComparison.OrdinalIgnoreCase);
 
@@ -91,8 +86,7 @@ app.UseAuthorization();
 
 var apiBase = "/bd-services/api";
 
-var health = app.MapGroup(apiBase);
-health.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+app.MapGet($"{apiBase}/healthz", () => Results.Ok(new { status = "ok" }));
 
 // ---------- Helpers ----------
 static bool IsAdmin(HttpContext http) =>
@@ -104,19 +98,76 @@ static IResult Forbidden() => Results.Json(new { error = "Admin access required.
 static List<string> ParseStringArray(string? json) =>
     string.IsNullOrWhiteSpace(json) ? new List<string>() : JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
 
+static string Slugify(string text) =>
+    string.Join("-", text.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+// Resolves a list of tag names to tag IDs, creating any tags that don't exist yet.
+static async Task<List<int>> ResolveTagIdsAsync(NpgsqlConnection conn, List<string> tagNames)
+{
+    var ids = new List<int>();
+    foreach (var raw in tagNames.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct())
+    {
+        var slug = Slugify(raw);
+        await using var upsert = new NpgsqlCommand(
+            "INSERT INTO tags (name, slug) VALUES ($1, $2) ON CONFLICT (slug) DO NOTHING", conn);
+        upsert.Parameters.AddWithValue(raw);
+        upsert.Parameters.AddWithValue(slug);
+        await upsert.ExecuteNonQueryAsync();
+
+        await using var select = new NpgsqlCommand("SELECT id FROM tags WHERE slug = $1", conn);
+        select.Parameters.AddWithValue(slug);
+        var id = (int)(await select.ExecuteScalarAsync())!;
+        ids.Add(id);
+    }
+    return ids;
+}
+
+static async Task SetGuideTagsAsync(NpgsqlConnection conn, int guideId, List<int> tagIds)
+{
+    await using var del = new NpgsqlCommand("DELETE FROM guide_tags WHERE guide_id = $1", conn);
+    del.Parameters.AddWithValue(guideId);
+    await del.ExecuteNonQueryAsync();
+
+    foreach (var tagId in tagIds)
+    {
+        await using var ins = new NpgsqlCommand(
+            "INSERT INTO guide_tags (guide_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", conn);
+        ins.Parameters.AddWithValue(guideId);
+        ins.Parameters.AddWithValue(tagId);
+        await ins.ExecuteNonQueryAsync();
+    }
+}
+
+// Shared SELECT list for guide summaries — joins category name and aggregates tag names.
+const string GuideSummaryColumns = @"
+    g.id, g.slug, c.name AS category, g.title, g.summary, g.fees, g.processing_time,
+    g.office, g.published_at, g.last_verified,
+    COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM guide_tags gt JOIN tags t ON t.id = gt.tag_id WHERE gt.guide_id = g.id), ARRAY[]::text[]) AS tag_names";
+
+static object ReadGuideSummary(NpgsqlDataReader reader) => new
+{
+    id = reader.GetInt32(0),
+    slug = reader.GetString(1),
+    category = reader.GetString(2),
+    title = reader.GetString(3),
+    summary = reader.GetString(4),
+    fees = reader.IsDBNull(5) ? null : reader.GetString(5),
+    processingTime = reader.IsDBNull(6) ? null : reader.GetString(6),
+    office = reader.IsDBNull(7) ? null : reader.GetString(7),
+    publishedAt = reader.GetDateTime(8),
+    lastVerified = reader.GetDateTime(9),
+    tags = reader.GetFieldValue<string[]>(10)
+};
+
 // ---------- Auth ----------
 var auth = app.MapGroup($"{apiBase}/auth");
 
 auth.MapPost("/register", async (RegisterRequest req, NpgsqlDataSource db, HttpContext http) =>
 {
     if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password) || string.IsNullOrWhiteSpace(req.FullName))
-    {
         return Results.BadRequest(new { error = "Email, password and full name are required." });
-    }
     if (req.Password.Length < 8)
-    {
         return Results.BadRequest(new { error = "Password must be at least 8 characters." });
-    }
 
     var email = req.Email.Trim().ToLowerInvariant();
     var hash = BCrypt.Net.BCrypt.HashPassword(req.Password);
@@ -133,10 +184,7 @@ auth.MapPost("/register", async (RegisterRequest req, NpgsqlDataSource db, HttpC
         cmd.Parameters.AddWithValue((object?)req.Phone ?? DBNull.Value);
 
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
-        {
-            return Results.Problem("Failed to create account.");
-        }
+        if (!await reader.ReadAsync()) return Results.Problem("Failed to create account.");
 
         var user = ReadUser(reader);
         await SignInUser(http, user);
@@ -151,29 +199,22 @@ auth.MapPost("/register", async (RegisterRequest req, NpgsqlDataSource db, HttpC
 auth.MapPost("/login", async (LoginRequest req, NpgsqlDataSource db, HttpContext http) =>
 {
     if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
-    {
         return Results.BadRequest(new { error = "Email and password are required." });
-    }
 
     var email = req.Email.Trim().ToLowerInvariant();
 
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "SELECT id, email, full_name, phone, created_at, is_admin, password_hash FROM bd_users WHERE email = $1",
-        conn);
+        "SELECT id, email, full_name, phone, created_at, is_admin, password_hash FROM bd_users WHERE email = $1", conn);
     cmd.Parameters.AddWithValue(email);
 
     await using var reader = await cmd.ExecuteReaderAsync();
     if (!await reader.ReadAsync())
-    {
         return Results.Json(new { error = "Invalid email or password." }, statusCode: 401);
-    }
 
     var passwordHash = reader.GetString(6);
     if (!BCrypt.Net.BCrypt.Verify(req.Password, passwordHash))
-    {
         return Results.Json(new { error = "Invalid email or password." }, statusCode: 401);
-    }
 
     var user = ReadUser(reader);
     await SignInUser(http, user);
@@ -188,10 +229,7 @@ auth.MapPost("/logout", async (HttpContext http) =>
 
 auth.MapGet("/me", async (HttpContext http, NpgsqlDataSource db) =>
 {
-    if (http.User.Identity?.IsAuthenticated != true)
-    {
-        return Unauthorized();
-    }
+    if (http.User.Identity?.IsAuthenticated != true) return Unauthorized();
 
     var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     await using var conn = await db.OpenConnectionAsync();
@@ -199,43 +237,30 @@ auth.MapGet("/me", async (HttpContext http, NpgsqlDataSource db) =>
         "SELECT id, email, full_name, phone, created_at, is_admin FROM bd_users WHERE id = $1", conn);
     cmd.Parameters.AddWithValue(userId);
     await using var reader = await cmd.ExecuteReaderAsync();
-    if (!await reader.ReadAsync())
-    {
-        return Unauthorized();
-    }
+    if (!await reader.ReadAsync()) return Unauthorized();
     return Results.Ok(ReadUser(reader));
 }).RequireAuthorization();
 
 // ---------- Account ----------
 app.MapPatch($"{apiBase}/account", async (UpdateAccountRequest req, HttpContext http, NpgsqlDataSource db) =>
 {
-    if (http.User.Identity?.IsAuthenticated != true)
-    {
-        return Unauthorized();
-    }
-    if (string.IsNullOrWhiteSpace(req.FullName))
-    {
-        return Results.BadRequest(new { error = "Full name is required." });
-    }
+    if (http.User.Identity?.IsAuthenticated != true) return Unauthorized();
+    if (string.IsNullOrWhiteSpace(req.FullName)) return Results.BadRequest(new { error = "Full name is required." });
 
     var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "UPDATE bd_users SET full_name = $1, phone = $2 WHERE id = $3 RETURNING id, email, full_name, phone, created_at, is_admin",
-        conn);
+        "UPDATE bd_users SET full_name = $1, phone = $2 WHERE id = $3 RETURNING id, email, full_name, phone, created_at, is_admin", conn);
     cmd.Parameters.AddWithValue(req.FullName.Trim());
     cmd.Parameters.AddWithValue((object?)req.Phone ?? DBNull.Value);
     cmd.Parameters.AddWithValue(userId);
 
     await using var reader = await cmd.ExecuteReaderAsync();
-    if (!await reader.ReadAsync())
-    {
-        return Results.Problem("Failed to update account.");
-    }
+    if (!await reader.ReadAsync()) return Results.Problem("Failed to update account.");
     return Results.Ok(ReadUser(reader));
 }).RequireAuthorization();
 
-// ---------- Bookmarks (save guides to your account) ----------
+// ---------- Bookmarks ----------
 var bookmarks = app.MapGroup($"{apiBase}/account/bookmarks").RequireAuthorization();
 
 bookmarks.MapGet("/", async (HttpContext http, NpgsqlDataSource db) =>
@@ -243,27 +268,14 @@ bookmarks.MapGet("/", async (HttpContext http, NpgsqlDataSource db) =>
     var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        @"SELECT g.slug, g.category, g.title, g.summary, g.fees, g.processing_time, g.office, g.published_at, g.last_verified
-          FROM bd_bookmarks b JOIN bd_guides g ON g.slug = b.guide_slug
-          WHERE b.user_id = $1 ORDER BY b.created_at DESC", conn);
+        $@"SELECT {GuideSummaryColumns} FROM bd_bookmarks b
+           JOIN bd_guides g ON g.id = b.guide_id
+           JOIN categories c ON c.id = g.category_id
+           WHERE b.user_id = $1 ORDER BY b.created_at DESC", conn);
     cmd.Parameters.AddWithValue(userId);
     await using var reader = await cmd.ExecuteReaderAsync();
     var results = new List<object>();
-    while (await reader.ReadAsync())
-    {
-        results.Add(new
-        {
-            slug = reader.GetString(0),
-            category = reader.GetString(1),
-            title = reader.GetString(2),
-            summary = reader.GetString(3),
-            fees = reader.IsDBNull(4) ? null : reader.GetString(4),
-            processingTime = reader.IsDBNull(5) ? null : reader.GetString(5),
-            office = reader.IsDBNull(6) ? null : reader.GetString(6),
-            publishedAt = reader.GetDateTime(7),
-            lastVerified = reader.GetDateTime(8)
-        });
-    }
+    while (await reader.ReadAsync()) results.Add(ReadGuideSummary(reader));
     return Results.Ok(results);
 });
 
@@ -272,7 +284,9 @@ bookmarks.MapPost("/{slug}", async (string slug, HttpContext http, NpgsqlDataSou
     var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "INSERT INTO bd_bookmarks (user_id, guide_slug) VALUES ($1, $2) ON CONFLICT DO NOTHING", conn);
+        @"INSERT INTO bd_bookmarks (user_id, guide_id)
+          SELECT $1, id FROM bd_guides WHERE slug = $2
+          ON CONFLICT DO NOTHING", conn);
     cmd.Parameters.AddWithValue(userId);
     cmd.Parameters.AddWithValue(slug);
     await cmd.ExecuteNonQueryAsync();
@@ -284,11 +298,32 @@ bookmarks.MapDelete("/{slug}", async (string slug, HttpContext http, NpgsqlDataS
     var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "DELETE FROM bd_bookmarks WHERE user_id = $1 AND guide_slug = $2", conn);
+        @"DELETE FROM bd_bookmarks WHERE user_id = $1
+          AND guide_id = (SELECT id FROM bd_guides WHERE slug = $2)", conn);
     cmd.Parameters.AddWithValue(userId);
     cmd.Parameters.AddWithValue(slug);
     await cmd.ExecuteNonQueryAsync();
     return Results.Ok(new { saved = false });
+});
+
+// ---------- Categories (public read) ----------
+app.MapGet($"{apiBase}/categories", async (NpgsqlDataSource db) =>
+{
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("SELECT id, name, slug, description FROM categories ORDER BY name", conn);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    var results = new List<object>();
+    while (await reader.ReadAsync())
+    {
+        results.Add(new
+        {
+            id = reader.GetInt32(0),
+            name = reader.GetString(1),
+            slug = reader.GetString(2),
+            description = reader.IsDBNull(3) ? null : reader.GetString(3)
+        });
+    }
+    return Results.Ok(results);
 });
 
 // ---------- Guides (public) ----------
@@ -296,25 +331,11 @@ app.MapGet($"{apiBase}/guides", async (NpgsqlDataSource db) =>
 {
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "SELECT slug, category, title, summary, fees, processing_time, office, published_at, last_verified, tags FROM bd_guides ORDER BY title", conn);
+        $@"SELECT {GuideSummaryColumns} FROM bd_guides g JOIN categories c ON c.id = g.category_id
+           WHERE g.is_published = true ORDER BY g.is_featured DESC, g.title", conn);
     await using var reader = await cmd.ExecuteReaderAsync();
     var results = new List<object>();
-    while (await reader.ReadAsync())
-    {
-        results.Add(new
-        {
-            slug = reader.GetString(0),
-            category = reader.GetString(1),
-            title = reader.GetString(2),
-            summary = reader.GetString(3),
-            fees = reader.IsDBNull(4) ? null : reader.GetString(4),
-            processingTime = reader.IsDBNull(5) ? null : reader.GetString(5),
-            office = reader.IsDBNull(6) ? null : reader.GetString(6),
-            publishedAt = reader.GetDateTime(7),
-            lastVerified = reader.GetDateTime(8),
-            tags = ParseStringArray(reader.IsDBNull(9) ? null : reader.GetString(9))
-        });
-    }
+    while (await reader.ReadAsync()) results.Add(ReadGuideSummary(reader));
     return Results.Ok(results);
 });
 
@@ -322,31 +343,33 @@ app.MapGet($"{apiBase}/guides/{{slug}}", async (string slug, NpgsqlDataSource db
 {
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "SELECT slug, category, title, summary, steps, requirements, fees, processing_time, office, published_at, last_verified, tags FROM bd_guides WHERE slug = $1", conn);
+        $@"SELECT g.id, g.slug, g.category_id, c.name AS category, g.title, g.summary, g.steps, g.requirements,
+           g.fees, g.processing_time, g.office, g.published_at, g.last_verified,
+           COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM guide_tags gt JOIN tags t ON t.id = gt.tag_id WHERE gt.guide_id = g.id), ARRAY[]::text[]) AS tag_names
+           FROM bd_guides g JOIN categories c ON c.id = g.category_id WHERE g.slug = $1", conn);
     cmd.Parameters.AddWithValue(slug);
     await using var reader = await cmd.ExecuteReaderAsync();
-    if (!await reader.ReadAsync())
-    {
-        return Results.NotFound(new { error = "Guide not found." });
-    }
+    if (!await reader.ReadAsync()) return Results.NotFound(new { error = "Guide not found." });
     return Results.Ok(new
     {
-        slug = reader.GetString(0),
-        category = reader.GetString(1),
-        title = reader.GetString(2),
-        summary = reader.GetString(3),
-        steps = ParseStringArray(reader.GetString(4)),
-        requirements = ParseStringArray(reader.GetString(5)),
-        fees = reader.IsDBNull(6) ? null : reader.GetString(6),
-        processingTime = reader.IsDBNull(7) ? null : reader.GetString(7),
-        office = reader.IsDBNull(8) ? null : reader.GetString(8),
-        publishedAt = reader.GetDateTime(9),
-        lastVerified = reader.GetDateTime(10),
-        tags = ParseStringArray(reader.IsDBNull(11) ? null : reader.GetString(11))
+        id = reader.GetInt32(0),
+        slug = reader.GetString(1),
+        categoryId = reader.GetInt32(2),
+        category = reader.GetString(3),
+        title = reader.GetString(4),
+        summary = reader.GetString(5),
+        steps = ParseStringArray(reader.GetString(6)),
+        requirements = ParseStringArray(reader.GetString(7)),
+        fees = reader.IsDBNull(8) ? null : reader.GetString(8),
+        processingTime = reader.IsDBNull(9) ? null : reader.GetString(9),
+        office = reader.IsDBNull(10) ? null : reader.GetString(10),
+        publishedAt = reader.GetDateTime(11),
+        lastVerified = reader.GetDateTime(12),
+        tags = reader.GetFieldValue<string[]>(13)
     });
 });
 
-// ---------- Blog (public) ----------
+// ---------- Blog (public, unchanged) ----------
 app.MapGet($"{apiBase}/blog", async (NpgsqlDataSource db) =>
 {
     await using var conn = await db.OpenConnectionAsync();
@@ -376,10 +399,7 @@ app.MapGet($"{apiBase}/blog/{{slug}}", async (string slug, NpgsqlDataSource db) 
         "SELECT slug, title, excerpt, content, cover_image_url, published_at, tags FROM bd_blog_posts WHERE slug = $1", conn);
     cmd.Parameters.AddWithValue(slug);
     await using var reader = await cmd.ExecuteReaderAsync();
-    if (!await reader.ReadAsync())
-    {
-        return Results.NotFound(new { error = "Post not found." });
-    }
+    if (!await reader.ReadAsync()) return Results.NotFound(new { error = "Post not found." });
     return Results.Ok(new
     {
         slug = reader.GetString(0),
@@ -392,21 +412,83 @@ app.MapGet($"{apiBase}/blog/{{slug}}", async (string slug, NpgsqlDataSource db) 
     });
 });
 
+// ---------- Admin: Categories ----------
+var adminCategories = app.MapGroup($"{apiBase}/admin/categories").RequireAuthorization();
+
+adminCategories.MapPost("/", async (CategoryDto dto, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand(
+        "INSERT INTO categories (name, slug, description) VALUES ($1, $2, $3) RETURNING id", conn);
+    cmd.Parameters.AddWithValue(dto.Name.Trim());
+    cmd.Parameters.AddWithValue(Slugify(dto.Name));
+    cmd.Parameters.AddWithValue((object?)dto.Description ?? DBNull.Value);
+    var id = (int)(await cmd.ExecuteScalarAsync())!;
+    return Results.Ok(new { id });
+});
+
+adminCategories.MapPut("/{id:int}", async (int id, CategoryDto dto, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand(
+        "UPDATE categories SET name=$1, description=$2 WHERE id=$3", conn);
+    cmd.Parameters.AddWithValue(dto.Name.Trim());
+    cmd.Parameters.AddWithValue((object?)dto.Description ?? DBNull.Value);
+    cmd.Parameters.AddWithValue(id);
+    var rows = await cmd.ExecuteNonQueryAsync();
+    return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
+});
+
+adminCategories.MapDelete("/{id:int}", async (int id, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("DELETE FROM categories WHERE id=$1", conn);
+    cmd.Parameters.AddWithValue(id);
+    var rows = await cmd.ExecuteNonQueryAsync();
+    return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
+});
+
+// ---------- Admin: Tags ----------
+app.MapGet($"{apiBase}/admin/tags", async (HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("SELECT id, name, slug FROM tags ORDER BY name", conn);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    var results = new List<object>();
+    while (await reader.ReadAsync())
+        results.Add(new { id = reader.GetInt32(0), name = reader.GetString(1), slug = reader.GetString(2) });
+    return Results.Ok(results);
+}).RequireAuthorization();
+
+app.MapDelete($"{apiBase}/admin/tags/{{id:int}}", async (int id, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("DELETE FROM tags WHERE id=$1", conn);
+    cmd.Parameters.AddWithValue(id);
+    var rows = await cmd.ExecuteNonQueryAsync();
+    return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
+}).RequireAuthorization();
+
 // ---------- Admin: Guides CRUD ----------
 var adminGuides = app.MapGroup($"{apiBase}/admin/guides").RequireAuthorization();
 
 adminGuides.MapPost("/", async (AdminGuideRequest req, HttpContext http, NpgsqlDataSource db) =>
 {
     if (!IsAdmin(http)) return Forbidden();
-
     await using var conn = await db.OpenConnectionAsync();
     try
     {
         await using var cmd = new NpgsqlCommand(
-            @"INSERT INTO bd_guides (slug, category, title, summary, steps, requirements, fees, processing_time, office, tags, last_verified)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())", conn);
+            @"INSERT INTO bd_guides (slug, category_id, title, summary, steps, requirements, fees, processing_time,
+              office, featured_image, keywords, meta_description, is_featured, is_published, last_verified)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now()) RETURNING id", conn);
         cmd.Parameters.AddWithValue(req.Slug.Trim());
-        cmd.Parameters.AddWithValue(req.Category.Trim());
+        cmd.Parameters.AddWithValue(req.CategoryId);
         cmd.Parameters.AddWithValue(req.Title.Trim());
         cmd.Parameters.AddWithValue(req.Summary.Trim());
         cmd.Parameters.AddWithValue(JsonSerializer.Serialize(req.Steps));
@@ -414,9 +496,17 @@ adminGuides.MapPost("/", async (AdminGuideRequest req, HttpContext http, NpgsqlD
         cmd.Parameters.AddWithValue((object?)req.Fees ?? DBNull.Value);
         cmd.Parameters.AddWithValue((object?)req.ProcessingTime ?? DBNull.Value);
         cmd.Parameters.AddWithValue((object?)req.Office ?? DBNull.Value);
-        cmd.Parameters.AddWithValue(JsonSerializer.Serialize(req.Tags ?? new List<string>()));
-        await cmd.ExecuteNonQueryAsync();
-        return Results.Ok(new { success = true });
+        cmd.Parameters.AddWithValue((object?)req.FeaturedImage ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)req.Keywords ?? DBNull.Value);
+        cmd.Parameters.AddWithValue((object?)req.MetaDescription ?? DBNull.Value);
+        cmd.Parameters.AddWithValue(req.IsFeatured);
+        cmd.Parameters.AddWithValue(req.IsPublished);
+        var guideId = (int)(await cmd.ExecuteScalarAsync())!;
+
+        var tagIds = await ResolveTagIdsAsync(conn, req.Tags ?? new List<string>());
+        await SetGuideTagsAsync(conn, guideId, tagIds);
+
+        return Results.Ok(new { success = true, id = guideId });
     }
     catch (PostgresException ex) when (ex.SqlState == "23505")
     {
@@ -427,12 +517,13 @@ adminGuides.MapPost("/", async (AdminGuideRequest req, HttpContext http, NpgsqlD
 adminGuides.MapPut("/{slug}", async (string slug, AdminGuideRequest req, HttpContext http, NpgsqlDataSource db) =>
 {
     if (!IsAdmin(http)) return Forbidden();
-
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        @"UPDATE bd_guides SET category=$1, title=$2, summary=$3, steps=$4, requirements=$5,
-          fees=$6, processing_time=$7, office=$8, tags=$9, last_verified=now() WHERE slug=$10", conn);
-    cmd.Parameters.AddWithValue(req.Category.Trim());
+        @"UPDATE bd_guides SET category_id=$1, title=$2, summary=$3, steps=$4, requirements=$5,
+          fees=$6, processing_time=$7, office=$8, featured_image=$9, keywords=$10, meta_description=$11,
+          is_featured=$12, is_published=$13, last_verified=now(), updated_at=now()
+          WHERE slug=$14 RETURNING id", conn);
+    cmd.Parameters.AddWithValue(req.CategoryId);
     cmd.Parameters.AddWithValue(req.Title.Trim());
     cmd.Parameters.AddWithValue(req.Summary.Trim());
     cmd.Parameters.AddWithValue(JsonSerializer.Serialize(req.Steps));
@@ -440,16 +531,25 @@ adminGuides.MapPut("/{slug}", async (string slug, AdminGuideRequest req, HttpCon
     cmd.Parameters.AddWithValue((object?)req.Fees ?? DBNull.Value);
     cmd.Parameters.AddWithValue((object?)req.ProcessingTime ?? DBNull.Value);
     cmd.Parameters.AddWithValue((object?)req.Office ?? DBNull.Value);
-    cmd.Parameters.AddWithValue(JsonSerializer.Serialize(req.Tags ?? new List<string>()));
+    cmd.Parameters.AddWithValue((object?)req.FeaturedImage ?? DBNull.Value);
+    cmd.Parameters.AddWithValue((object?)req.Keywords ?? DBNull.Value);
+    cmd.Parameters.AddWithValue((object?)req.MetaDescription ?? DBNull.Value);
+    cmd.Parameters.AddWithValue(req.IsFeatured);
+    cmd.Parameters.AddWithValue(req.IsPublished);
     cmd.Parameters.AddWithValue(slug);
-    var affected = await cmd.ExecuteNonQueryAsync();
-    return affected == 0 ? Results.NotFound(new { error = "Guide not found." }) : Results.Ok(new { success = true });
+
+    var result = await cmd.ExecuteScalarAsync();
+    if (result is null) return Results.NotFound(new { error = "Guide not found." });
+
+    var tagIds = await ResolveTagIdsAsync(conn, req.Tags ?? new List<string>());
+    await SetGuideTagsAsync(conn, (int)result, tagIds);
+
+    return Results.Ok(new { success = true });
 });
 
 adminGuides.MapDelete("/{slug}", async (string slug, HttpContext http, NpgsqlDataSource db) =>
 {
     if (!IsAdmin(http)) return Forbidden();
-
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand("DELETE FROM bd_guides WHERE slug = $1", conn);
     cmd.Parameters.AddWithValue(slug);
@@ -459,10 +559,10 @@ adminGuides.MapDelete("/{slug}", async (string slug, HttpContext http, NpgsqlDat
 
 // ---------- Admin: Blog CRUD ----------
 var adminBlog = app.MapGroup($"{apiBase}/admin/blog").RequireAuthorization();
+
 adminBlog.MapPost("/", async (AdminBlogRequest req, HttpContext http, NpgsqlDataSource db) =>
 {
     if (!IsAdmin(http)) return Forbidden();
-
     await using var conn = await db.OpenConnectionAsync();
     try
     {
@@ -487,10 +587,9 @@ adminBlog.MapPost("/", async (AdminBlogRequest req, HttpContext http, NpgsqlData
 adminBlog.MapPut("/{slug}", async (string slug, AdminBlogRequest req, HttpContext http, NpgsqlDataSource db) =>
 {
     if (!IsAdmin(http)) return Forbidden();
-
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        @"UPDATE bd_blog_posts SET title=$1, excerpt=$2, content=$3, cover_image_url=$4, tags=$5 WHERE slug=$6", conn);
+        "UPDATE bd_blog_posts SET title=$1, excerpt=$2, content=$3, cover_image_url=$4, tags=$5 WHERE slug=$6", conn);
     cmd.Parameters.AddWithValue(req.Title.Trim());
     cmd.Parameters.AddWithValue(req.Excerpt.Trim());
     cmd.Parameters.AddWithValue(req.Content);
@@ -504,7 +603,6 @@ adminBlog.MapPut("/{slug}", async (string slug, AdminBlogRequest req, HttpContex
 adminBlog.MapDelete("/{slug}", async (string slug, HttpContext http, NpgsqlDataSource db) =>
 {
     if (!IsAdmin(http)) return Forbidden();
-
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand("DELETE FROM bd_blog_posts WHERE slug = $1", conn);
     cmd.Parameters.AddWithValue(slug);
@@ -512,122 +610,122 @@ adminBlog.MapDelete("/{slug}", async (string slug, HttpContext http, NpgsqlDataS
     return affected == 0 ? Results.NotFound(new { error = "Post not found." }) : Results.Ok(new { success = true });
 });
 
-app.MapGet($"{apiBase}/admin/categories", async (NpgsqlDataSource db) =>
+// ---------- Admin: Hero slides ----------
+var adminHero = app.MapGroup($"{apiBase}/admin/hero-slides").RequireAuthorization();
+
+adminHero.MapGet("/", async (HttpContext http, NpgsqlDataSource db) =>
 {
-    var categories = new List<object>();
-
+    if (!IsAdmin(http)) return Forbidden();
     await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        SELECT id,name,slug,description
-        FROM categories
-        ORDER BY name
-    ", conn);
-
+    await using var cmd = new NpgsqlCommand(
+        "SELECT id, guide_id, image_url, title, subtitle, button_text, button_link, display_order, is_active FROM hero_slides ORDER BY display_order", conn);
     await using var reader = await cmd.ExecuteReaderAsync();
-
+    var results = new List<object>();
     while (await reader.ReadAsync())
     {
-        categories.Add(new
+        results.Add(new
         {
-            Id = reader.GetInt32(0),
-            Name = reader.GetString(1),
-            Slug = reader.GetString(2),
-            Description = reader.IsDBNull(3) ? "" : reader.GetString(3)
+            id = reader.GetInt32(0),
+            guideId = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1),
+            imageUrl = reader.GetString(2),
+            title = reader.GetString(3),
+            subtitle = reader.IsDBNull(4) ? null : reader.GetString(4),
+            buttonText = reader.IsDBNull(5) ? null : reader.GetString(5),
+            buttonLink = reader.IsDBNull(6) ? null : reader.GetString(6),
+            displayOrder = reader.GetInt32(7),
+            isActive = reader.GetBoolean(8)
         });
     }
+    return Results.Ok(results);
+});
 
-    return Results.Ok(categories);
-
-}).RequireAuthorization();
-
-app.MapPost($"{apiBase}/admin/categories", async (
-    HttpContext http,
-    CategoryDto dto,
-    NpgsqlDataSource db) =>
+adminHero.MapPost("/", async (HeroSlideDto dto, HttpContext http, NpgsqlDataSource db) =>
 {
-    if (!IsAdmin(http))
-        return Forbidden();
-
+    if (!IsAdmin(http)) return Forbidden();
     await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        INSERT INTO categories
-        (name,slug,description)
-
-        VALUES
-
-        (@name,@slug,@description)
-
-        RETURNING id;
-    ", conn);
-
-    cmd.Parameters.AddWithValue("name", dto.Name);
-    cmd.Parameters.AddWithValue("slug", dto.Slug);
-    cmd.Parameters.AddWithValue("description",
-        (object?)dto.Description ?? DBNull.Value);
-
+    await using var cmd = new NpgsqlCommand(
+        @"INSERT INTO hero_slides (guide_id, image_url, title, subtitle, button_text, button_link, display_order, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id", conn);
+    cmd.Parameters.AddWithValue((object?)dto.GuideId ?? DBNull.Value);
+    cmd.Parameters.AddWithValue(dto.ImageUrl);
+    cmd.Parameters.AddWithValue(dto.Title);
+    cmd.Parameters.AddWithValue((object?)dto.Subtitle ?? DBNull.Value);
+    cmd.Parameters.AddWithValue((object?)dto.ButtonText ?? DBNull.Value);
+    cmd.Parameters.AddWithValue((object?)dto.ButtonLink ?? DBNull.Value);
+    cmd.Parameters.AddWithValue(dto.DisplayOrder);
+    cmd.Parameters.AddWithValue(dto.IsActive);
     var id = (int)(await cmd.ExecuteScalarAsync())!;
+    return Results.Ok(new { id });
+});
 
-    return Results.Ok(new
-    {
-        id,
-        message = "Category created successfully"
-    });
-
-}).RequireAuthorization();
-
-app.MapPut($"{apiBase}/admin/categories/{{id:int}}", async (
-    int id,
-    HttpContext http,
-    CategoryDto dto,
-    NpgsqlDataSource db) =>
+adminHero.MapPut("/{id:int}", async (int id, HeroSlideDto dto, HttpContext http, NpgsqlDataSource db) =>
 {
-    if (!IsAdmin(http))
-        return Forbidden();
-
+    if (!IsAdmin(http)) return Forbidden();
     await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        UPDATE categories
-
-        SET
-            name=@name,
-            slug=@slug,
-            description=@description
-
-        WHERE id=@id
-    ", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-    cmd.Parameters.AddWithValue("name", dto.Name);
-    cmd.Parameters.AddWithValue("slug", dto.Slug);
-    cmd.Parameters.AddWithValue("description",
-        (object?)dto.Description ?? DBNull.Value);
-
+    await using var cmd = new NpgsqlCommand(
+        @"UPDATE hero_slides SET guide_id=$1, image_url=$2, title=$3, subtitle=$4, button_text=$5,
+          button_link=$6, display_order=$7, is_active=$8 WHERE id=$9", conn);
+    cmd.Parameters.AddWithValue((object?)dto.GuideId ?? DBNull.Value);
+    cmd.Parameters.AddWithValue(dto.ImageUrl);
+    cmd.Parameters.AddWithValue(dto.Title);
+    cmd.Parameters.AddWithValue((object?)dto.Subtitle ?? DBNull.Value);
+    cmd.Parameters.AddWithValue((object?)dto.ButtonText ?? DBNull.Value);
+    cmd.Parameters.AddWithValue((object?)dto.ButtonLink ?? DBNull.Value);
+    cmd.Parameters.AddWithValue(dto.DisplayOrder);
+    cmd.Parameters.AddWithValue(dto.IsActive);
+    cmd.Parameters.AddWithValue(id);
     var rows = await cmd.ExecuteNonQueryAsync();
+    return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
+});
 
-    if (rows == 0)
-        return Results.NotFound();
+adminHero.MapDelete("/{id:int}", async (int id, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("DELETE FROM hero_slides WHERE id=$1", conn);
+    cmd.Parameters.AddWithValue(id);
+    var rows = await cmd.ExecuteNonQueryAsync();
+    return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
+});
 
-    return Results.Ok();
-})
-.RequireAuthorization();
-
-app.MapGet($"{apiBase}/admin/dashboard", async (NpgsqlDataSource db) =>
+// Public read for the home page slider
+app.MapGet($"{apiBase}/hero-slides", async (NpgsqlDataSource db) =>
 {
     await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-SELECT
-    (SELECT COUNT(*) FROM bd_users) AS total_users,
-    (SELECT COUNT(*) FROM bd_guides) AS total_guides,
-    (SELECT COUNT(*) FROM bd_blog_posts) AS total_blogs,
-    (SELECT COUNT(*) FROM bookmarks) AS total_bookmarks;
-", conn);
-
+    await using var cmd = new NpgsqlCommand(
+        @"SELECT hs.id, g.slug AS guide_slug, hs.image_url, hs.title, hs.subtitle, hs.button_text, hs.button_link
+          FROM hero_slides hs LEFT JOIN bd_guides g ON g.id = hs.guide_id
+          WHERE hs.is_active = true ORDER BY hs.display_order", conn);
     await using var reader = await cmd.ExecuteReaderAsync();
+    var results = new List<object>();
+    while (await reader.ReadAsync())
+    {
+        results.Add(new
+        {
+            id = reader.GetInt32(0),
+            guideSlug = reader.IsDBNull(1) ? null : reader.GetString(1),
+            imageUrl = reader.GetString(2),
+            title = reader.GetString(3),
+            subtitle = reader.IsDBNull(4) ? null : reader.GetString(4),
+            buttonText = reader.IsDBNull(5) ? null : reader.GetString(5),
+            buttonLink = reader.IsDBNull(6) ? null : reader.GetString(6)
+        });
+    }
+    return Results.Ok(results);
+});
 
+// ---------- Admin: dashboard stats ----------
+app.MapGet($"{apiBase}/admin/dashboard", async (HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand(@"
+        SELECT
+            (SELECT COUNT(*) FROM bd_users) AS total_users,
+            (SELECT COUNT(*) FROM bd_guides) AS total_guides,
+            (SELECT COUNT(*) FROM bd_blog_posts) AS total_blogs,
+            (SELECT COUNT(*) FROM bd_bookmarks) AS total_bookmarks", conn);
+    await using var reader = await cmd.ExecuteReaderAsync();
     if (await reader.ReadAsync())
     {
         return Results.Ok(new
@@ -638,539 +736,9 @@ SELECT
             totalBookmarks = reader.GetInt32(3)
         });
     }
-
-    return Results.Ok();
+    return Results.Ok(new { totalUsers = 0, totalGuides = 0, totalBlogs = 0, totalBookmarks = 0 });
 }).RequireAuthorization();
 
-app.MapDelete($"{apiBase}/admin/categories/{{id:int}}", async (
-    int id,
-    HttpContext http,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(
-        "DELETE FROM categories WHERE id=@id", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-
-    var rows = await cmd.ExecuteNonQueryAsync();
-
-    if (rows == 0)
-        return Results.NotFound();
-
-    return Results.Ok();
-})
-.RequireAuthorization();
-
-app.MapGet($"{apiBase}/admin/tags", async (NpgsqlDataSource db) =>
-{
-    List<object> tags = [];
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        SELECT id,name,slug
-        FROM tags
-        ORDER BY name
-    ", conn);
-
-    await using var reader = await cmd.ExecuteReaderAsync();
-
-    while (await reader.ReadAsync())
-    {
-        tags.Add(new
-        {
-            Id = reader.GetInt32(0),
-            Name = reader.GetString(1),
-            Slug = reader.GetString(2)
-        });
-    }
-
-    return Results.Ok(tags);
-
-})
-.RequireAuthorization();
-
-app.MapPost($"{apiBase}/admin/tags", async (
-    HttpContext http,
-    TagDto dto,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        INSERT INTO tags(name,slug)
-
-        VALUES(@name,@slug)
-
-        RETURNING id;
-    ", conn);
-
-    cmd.Parameters.AddWithValue("name", dto.Name);
-    cmd.Parameters.AddWithValue("slug", dto.Slug);
-
-    var id = (int)(await cmd.ExecuteScalarAsync())!;
-
-    return Results.Ok(new
-    {
-        id
-    });
-
-})
-.RequireAuthorization();
-
-app.MapPut($"{apiBase}/admin/tags/{{id:int}}", async (
-    int id,
-    HttpContext http,
-    TagDto dto,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        UPDATE tags
-
-        SET
-            name=@name,
-            slug=@slug
-
-        WHERE id=@id
-    ", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-    cmd.Parameters.AddWithValue("name", dto.Name);
-    cmd.Parameters.AddWithValue("slug", dto.Slug);
-
-    await cmd.ExecuteNonQueryAsync();
-
-    return Results.Ok();
-
-})
-.RequireAuthorization();
-
-app.MapDelete($"{apiBase}/admin/tags/{{id:int}}", async (
-    int id,
-    HttpContext http,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(
-        "DELETE FROM tags WHERE id=@id", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-
-    await cmd.ExecuteNonQueryAsync();
-
-    return Results.Ok();
-
-})
-.RequireAuthorization();
-
-app.MapGet($"{apiBase}/admin/hero-slides", async (
-    HttpContext http,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    List<object> slides = [];
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        SELECT
-            id,
-            guide_id,
-            image_url,
-            title,
-            subtitle,
-            button_text,
-            button_link,
-            display_order,
-            is_active
-        FROM hero_slides
-        ORDER BY display_order ASC;
-    ", conn);
-
-    await using var reader = await cmd.ExecuteReaderAsync();
-
-    while (await reader.ReadAsync())
-    {
-        slides.Add(new
-        {
-            Id = reader.GetInt32(0),
-            GuideId = reader.GetInt32(1),
-            ImageUrl = reader.GetString(2),
-            Title = reader.GetString(3),
-            Subtitle = reader.IsDBNull(4) ? "" : reader.GetString(4),
-            ButtonText = reader.IsDBNull(5) ? "" : reader.GetString(5),
-            ButtonLink = reader.IsDBNull(6) ? "" : reader.GetString(6),
-            DisplayOrder = reader.GetInt32(7),
-            IsActive = reader.GetBoolean(8)
-        });
-    }
-
-    return Results.Ok(slides);
-
-}).RequireAuthorization();
-
-app.MapGet($"{apiBase}/admin/hero-slides", async (
-    HttpContext http,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    List<object> slides = [];
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        SELECT
-            id,
-            guide_id,
-            image_url,
-            title,
-            subtitle,
-            button_text,
-            button_link,
-            display_order,
-            is_active
-        FROM hero_slides
-        ORDER BY display_order ASC;
-    ", conn);
-
-    await using var reader = await cmd.ExecuteReaderAsync();
-
-    while (await reader.ReadAsync())
-    {
-        slides.Add(new
-        {
-            Id = reader.GetInt32(0),
-            GuideId = reader.GetInt32(1),
-            ImageUrl = reader.GetString(2),
-            Title = reader.GetString(3),
-            Subtitle = reader.IsDBNull(4) ? "" : reader.GetString(4),
-            ButtonText = reader.IsDBNull(5) ? "" : reader.GetString(5),
-            ButtonLink = reader.IsDBNull(6) ? "" : reader.GetString(6),
-            DisplayOrder = reader.GetInt32(7),
-            IsActive = reader.GetBoolean(8)
-        });
-    }
-
-    return Results.Ok(slides);
-
-}).RequireAuthorization();
-
-app.MapPut($"{apiBase}/admin/hero-slides/{{id:int}}", async (
-    int id,
-    HttpContext http,
-    HeroSlideDto dto,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-        UPDATE hero_slides
-        SET
-            guide_id=@guideId,
-            image_url=@imageUrl,
-            title=@title,
-            subtitle=@subtitle,
-            button_text=@buttonText,
-            button_link=@buttonLink,
-            display_order=@displayOrder,
-            is_active=@isActive
-        WHERE id=@id;
-    ", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-    cmd.Parameters.AddWithValue("guideId", dto.GuideId);
-    cmd.Parameters.AddWithValue("imageUrl", dto.ImageUrl);
-    cmd.Parameters.AddWithValue("title", dto.Title);
-    cmd.Parameters.AddWithValue("subtitle", (object?)dto.Subtitle ?? DBNull.Value);
-    cmd.Parameters.AddWithValue("buttonText", (object?)dto.ButtonText ?? DBNull.Value);
-    cmd.Parameters.AddWithValue("buttonLink", (object?)dto.ButtonLink ?? DBNull.Value);
-    cmd.Parameters.AddWithValue("displayOrder", dto.DisplayOrder);
-    cmd.Parameters.AddWithValue("isActive", dto.IsActive);
-
-    var rows = await cmd.ExecuteNonQueryAsync();
-
-    if (rows == 0)
-        return Results.NotFound();
-
-    return Results.Ok(new
-    {
-        message = "Hero slide updated successfully."
-    });
-
-}).RequireAuthorization();
-
-app.MapDelete($"{apiBase}/admin/hero-slides/{{id:int}}", async (
-    int id,
-    HttpContext http,
-    NpgsqlDataSource db) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(
-        "DELETE FROM hero_slides WHERE id=@id;", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-
-    var rows = await cmd.ExecuteNonQueryAsync();
-
-    if (rows == 0)
-        return Results.NotFound();
-
-    return Results.Ok(new
-    {
-        message = "Hero slide deleted successfully."
-    });
-
-}).RequireAuthorization();
-
-app.MapPost($"{apiBase}/admin/upload", async (
-    HttpContext http,
-    IWebHostEnvironment env) =>
-{
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    var form = await http.Request.ReadFormAsync();
-
-    var file = form.Files.FirstOrDefault();
-
-    if (file == null || file.Length == 0)
-        return Results.BadRequest("No file uploaded.");
-
-    var uploadsPath = Path.Combine(env.WebRootPath, "uploads");
-
-    if (!Directory.Exists(uploadsPath))
-        Directory.CreateDirectory(uploadsPath);
-
-    var extension = Path.GetExtension(file.FileName);
-
-    var fileName = $"{Guid.NewGuid()}{extension}";
-
-    var filePath = Path.Combine(uploadsPath, fileName);
-
-    await using var stream = File.Create(filePath);
-
-    await file.CopyToAsync(stream);
-
-    var imageUrl =
-        $"{http.Request.Scheme}://{http.Request.Host}/uploads/{fileName}";
-
-    return Results.Ok(new
-    {
-        imageUrl
-    });
-
-})
-.RequireAuthorization();
-
-app.MapPost($"{apiBase}/admin/guides", async (
-
-    HttpContext http,
-
-    GuideEditorDto dto,
-
-    NpgsqlDataSource db) =>
-{
-
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-
-INSERT INTO bd_guides(
-
-title,
-
-slug,
-
-summary,
-
-content,
-
-category_id,
-
-featured_image,
-
-keywords,
-
-meta_description,
-
-is_featured,
-
-is_published
-
-)
-
-VALUES(
-
-@title,
-
-@slug,
-
-@summary,
-
-@content,
-
-@category,
-
-@image,
-
-@keywords,
-
-@meta,
-
-@featured,
-
-@published
-
-)
-
-RETURNING id;
-
-", conn);
-
-    cmd.Parameters.AddWithValue("title", dto.Title);
-    cmd.Parameters.AddWithValue("slug", dto.Slug);
-    cmd.Parameters.AddWithValue("summary", dto.Summary);
-    cmd.Parameters.AddWithValue("content", dto.Content);
-    cmd.Parameters.AddWithValue("category", dto.CategoryId);
-
-    cmd.Parameters.AddWithValue("image",
-        (object?)dto.FeaturedImage ?? DBNull.Value);
-
-    cmd.Parameters.AddWithValue("keywords",
-        (object?)dto.Keywords ?? DBNull.Value);
-
-    cmd.Parameters.AddWithValue("meta",
-        (object?)dto.MetaDescription ?? DBNull.Value);
-
-    cmd.Parameters.AddWithValue("featured", dto.IsFeatured);
-
-    cmd.Parameters.AddWithValue("published", dto.IsPublished);
-
-    var id = (int)(await cmd.ExecuteScalarAsync())!;
-
-    return Results.Ok(new
-    {
-
-        id,
-
-        message = "Guide created."
-
-    });
-
-}).RequireAuthorization();
-
-app.MapPut($"{apiBase}/admin/guides/{{id:int}}", async (
-
-int id,
-
-HttpContext http,
-
-GuideEditorDto dto,
-
-NpgsqlDataSource db) =>
-{
-
-    if (!IsAdmin(http))
-        return Forbidden();
-
-    await using var conn = await db.OpenConnectionAsync();
-
-    var cmd = new NpgsqlCommand(@"
-
-UPDATE bd_guides
-
-SET
-
-title=@title,
-
-slug=@slug,
-
-summary=@summary,
-
-content=@content,
-
-category_id=@category,
-
-featured_image=@image,
-
-keywords=@keywords,
-
-meta_description=@meta,
-
-is_featured=@featured,
-
-is_published=@published,
-
-updated_at=CURRENT_TIMESTAMP
-
-WHERE id=@id;
-
-", conn);
-
-    cmd.Parameters.AddWithValue("id", id);
-
-    cmd.Parameters.AddWithValue("title", dto.Title);
-
-    cmd.Parameters.AddWithValue("slug", dto.Slug);
-
-    cmd.Parameters.AddWithValue("summary", dto.Summary);
-
-    cmd.Parameters.AddWithValue("content", dto.Content);
-
-    cmd.Parameters.AddWithValue("category", dto.CategoryId);
-
-    cmd.Parameters.AddWithValue("image",
-    (object?)dto.FeaturedImage ?? DBNull.Value);
-
-    cmd.Parameters.AddWithValue("keywords",
-    (object?)dto.Keywords ?? DBNull.Value);
-
-    cmd.Parameters.AddWithValue("meta",
-    (object?)dto.MetaDescription ?? DBNull.Value);
-
-    cmd.Parameters.AddWithValue("featured", dto.IsFeatured);
-
-    cmd.Parameters.AddWithValue("published", dto.IsPublished);
-
-    await cmd.ExecuteNonQueryAsync();
-
-    return Results.Ok();
-
-}).RequireAuthorization();
-
-app.UseHttpsRedirection();
-app.UseStaticFiles();
 app.Run();
 
 static UserResponse ReadUser(NpgsqlDataReader reader) => new(
@@ -1200,31 +768,11 @@ record LoginRequest(string Email, string Password);
 record UpdateAccountRequest(string FullName, string? Phone);
 record UserResponse(int Id, string Email, string FullName, string? Phone, DateTime CreatedAt, bool IsAdmin);
 record AdminGuideRequest(
-    string Slug, string Category, string Title, string Summary,
+    string Slug, int CategoryId, string Title, string Summary,
     List<string> Steps, List<string> Requirements,
-    string? Fees, string? ProcessingTime, string? Office, List<string>? Tags);
-record AdminBlogRequest(
-    string Slug, string Title, string Excerpt, string Content,
-    string? CoverImageUrl, List<string>? Tags);
-record TagDto(string Name, string Slug);
-record CategoryDto(string Name, string Slug, string? Description);
-record HeroSlideDto(
-    int GuideId,
-    string ImageUrl,
-    string Title,
-    string? Subtitle,
-    string? ButtonText,
-    string? ButtonLink,
-    int DisplayOrder,
-    bool IsActive);
-record GuideEditorDto(
-    string Title,
-    string Slug,
-    string Summary,
-    string Content,
-    int CategoryId,
-    string? FeaturedImage,
-    string? Keywords,
-    string? MetaDescription,
-    bool IsFeatured,
-    bool IsPublished);
+    string? Fees, string? ProcessingTime, string? Office,
+    string? FeaturedImage, string? Keywords, string? MetaDescription,
+    bool IsFeatured, bool IsPublished, List<string>? Tags);
+record AdminBlogRequest(string Slug, string Title, string Excerpt, string Content, string? CoverImageUrl, List<string>? Tags);
+record CategoryDto(string Name, string? Description);
+record HeroSlideDto(int? GuideId, string ImageUrl, string Title, string? Subtitle, string? ButtonText, string? ButtonLink, int DisplayOrder, bool IsActive);

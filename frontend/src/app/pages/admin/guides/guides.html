@@ -1,1 +1,27 @@
-<p>guides works!</p>
+<section class="container page">
+  <a class="back-link" routerLink="/admin/dashboard">&larr; Dashboard</a>
+  <div class="section-head">
+    <div>
+      <span class="tag">Admin</span>
+      <h1>Guides ({{ guides().length }})</h1>
+    </div>
+    <a class="btn btn-primary" routerLink="/admin/guides/new">+ New guide</a>
+  </div>
+
+  <table class="admin-table">
+    <thead><tr><th>Title</th><th>Category</th><th>Last verified</th><th></th></tr></thead>
+    <tbody>
+      @for (g of guides(); track g.slug) {
+        <tr>
+          <td>{{ g.title }}</td>
+          <td>{{ g.category }}</td>
+          <td>{{ g.lastVerified | date }}</td>
+          <td class="row-actions">
+            <a class="btn btn-outline" [routerLink]="['/admin/guides', g.slug, 'edit']">Edit</a>
+            <button class="btn btn-outline danger" type="button" (click)="remove(g.slug)">Delete</button>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

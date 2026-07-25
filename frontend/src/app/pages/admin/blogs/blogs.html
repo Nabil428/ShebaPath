@@ -1,1 +1,26 @@
-<p>blogs works!</p>
+<section class="container page">
+  <a class="back-link" routerLink="/admin/dashboard">&larr; Dashboard</a>
+  <div class="section-head">
+    <div>
+      <span class="tag">Admin</span>
+      <h1>Blog posts ({{ posts().length }})</h1>
+    </div>
+    <a class="btn btn-primary" routerLink="/admin/blogs/new">+ New post</a>
+  </div>
+
+  <table class="admin-table">
+    <thead><tr><th>Title</th><th>Published</th><th></th></tr></thead>
+    <tbody>
+      @for (p of posts(); track p.slug) {
+        <tr>
+          <td>{{ p.title }}</td>
+          <td>{{ p.publishedAt | date }}</td>
+          <td class="row-actions">
+            <a class="btn btn-outline" [routerLink]="['/admin/blogs', p.slug, 'edit']">Edit</a>
+            <button class="btn btn-outline danger" type="button" (click)="remove(p.slug)">Delete</button>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

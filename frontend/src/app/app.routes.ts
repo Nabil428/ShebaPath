@@ -87,12 +87,44 @@ export const routes: Routes = [
   },
 
   {
+    path: 'admin/guides/new',
+    loadComponent: () =>
+      import('./pages/admin/admin-guide-form/admin-guide-form').then((m) => m.AdminGuideFormPage),
+    canActivate: [authGuard],
+    title: 'New Guide',
+  },
+
+  {
+    path: 'admin/guides/:slug/edit',
+    loadComponent: () =>
+      import('./pages/admin/admin-guide-form/admin-guide-form').then((m) => m.AdminGuideFormPage),
+    canActivate: [authGuard],
+    title: 'Edit Guide',
+  },
+
+  {
     path: 'admin/blogs',
     loadComponent: () =>
       import('./pages/admin/blogs/blogs')
         .then((m) => m.Blogs),
     canActivate: [authGuard],
     title: 'Manage Blogs',
+  },
+
+  {
+    path: 'admin/blogs/new',
+    loadComponent: () =>
+      import('./pages/admin/admin-blog-form/admin-blog-form').then((m) => m.AdminBlogFormPage),
+    canActivate: [authGuard],
+    title: 'New Post',
+  },
+
+  {
+    path: 'admin/blogs/:slug/edit',
+    loadComponent: () =>
+      import('./pages/admin/admin-blog-form/admin-blog-form').then((m) => m.AdminBlogFormPage),
+    canActivate: [authGuard],
+    title: 'Edit Post',
   },
 
   {

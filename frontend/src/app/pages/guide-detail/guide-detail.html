@@ -10,13 +10,22 @@
     <a class="back-link" routerLink="/guides">&larr; All guides</a>
     <div class="top-row">
       <span class="tag">{{ guide()!.category }}</span>
-      <button class="btn btn-outline notranslate" type="button" (click)="downloadPdf()">
-        ⬇ Download as PDF
-      </button>
+      <div class="action-buttons">
+        @if (auth.isAuthenticated()) {
+          <button class="btn btn-outline notranslate" type="button" [disabled]="savingBookmark()" (click)="toggleBookmark()">
+            {{ bookmarks.isSaved(guide()!.slug) ? '★ Saved' : '☆ Save' }}
+          </button>
+        }
+        <app-share-button [title]="guide()!.title" [url]="pageUrl" />
+        <button class="btn btn-outline notranslate" type="button" (click)="downloadPdf()">
+          ⬇ Download as PDF
+        </button>
+      </div>
     </div>
     <h1>{{ guide()!.title }}</h1>
     <p class="lede">{{ guide()!.summary }}</p>
     <p class="verified-note">✓ Last verified {{ guide()!.lastVerified | date: 'longDate' }}</p>
+    <app-tag-chips [tags]="guide()!.tags" />
 
     <div class="fact-row">
       @if (guide()!.fees) {
@@ -58,5 +67,20 @@
         </ul>
       </div>
     </div>
+
+    @if (relatedGuides().length) {
+      <div class="related-section">
+        <h2>Related guides</h2>
+        <div class="related-grid">
+          @for (rg of relatedGuides(); track rg.slug) {
+            <a class="card related-card" [routerLink]="['/guides', rg.slug]">
+              <span class="tag">{{ rg.category }}</span>
+              <h3>{{ rg.title }}</h3>
+              <p>{{ rg.summary }}</p>
+            </a>
+          }
+        </div>
+      </div>
+    }
   </section>
 }

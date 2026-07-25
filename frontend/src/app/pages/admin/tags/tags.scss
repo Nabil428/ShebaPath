@@ -1,0 +1,11 @@
+.form-card { margin: 20px 0; padding: 20px; }
+.field-row { display: flex; gap: 10px; }
+input { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; flex: 1; }
+.tag-list { display: flex; flex-direction: column; gap: 8px; }
+.tag-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px;
+  span { flex: 1; font-weight: 600; }
+}
+.danger { color: #dc2626; border-color: #dc2626; }
+.error-banner { background: #fee2e2; color: #b91c1c; padding: 10px 14px; border-radius: 8px; margin-bottom: 12px; }

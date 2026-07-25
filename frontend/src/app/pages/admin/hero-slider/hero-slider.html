@@ -1,1 +1,67 @@
-<p>hero-slider works!</p>
+<section class="container page">
+  <a class="back-link" routerLink="/admin/dashboard">&larr; Dashboard</a>
+  <span class="tag">Admin</span>
+  <h1>Hero slider</h1>
+  <p class="lede">Slides shown on the homepage banner.</p>
+
+  <div class="card form-card">
+    <h3>{{ editingId() ? 'Edit slide' : 'New slide' }}</h3>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="field">
+        <label>Image</label>
+        <input type="file" accept="image/*" (change)="onFileSelected($event)" />
+        @if (uploading()) { <span>Uploading…</span> }
+        @if (form.value.imageUrl) {
+          <img class="preview" [src]="form.value.imageUrl" alt="preview" />
+        }
+      </div>
+      <div class="field">
+        <label>Title</label>
+        <input type="text" formControlName="title" />
+      </div>
+      <div class="field">
+        <label>Subtitle</label>
+        <input type="text" formControlName="subtitle" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Button text</label>
+          <input type="text" formControlName="buttonText" />
+        </div>
+        <div class="field">
+          <label>Button link</label>
+          <input type="text" formControlName="buttonLink" placeholder="/guides/passport" />
+        </div>
+        <div class="field">
+          <label>Order</label>
+          <input type="number" formControlName="displayOrder" />
+        </div>
+      </div>
+      <label class="checkbox-row"><input type="checkbox" formControlName="isActive" /> Active</label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Save slide' }}</button>
+        @if (editingId()) {
+          <button class="btn btn-outline" type="button" (click)="resetForm()">Cancel edit</button>
+        }
+      </div>
+    </form>
+  </div>
+
+  <table class="admin-table">
+    <thead><tr><th>Preview</th><th>Title</th><th>Order</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+      @for (s of slides(); track s.id) {
+        <tr>
+          <td><img class="thumb" [src]="s.imageUrl" alt="" /></td>
+          <td>{{ s.title }}</td>
+          <td>{{ s.displayOrder }}</td>
+          <td>{{ s.isActive ? 'Yes' : 'No' }}</td>
+          <td class="row-actions">
+            <button class="btn btn-outline" type="button" (click)="edit(s)">Edit</button>
+            <button class="btn btn-outline danger" type="button" (click)="remove(s.id)">Delete</button>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

@@ -24,6 +24,8 @@ export interface GuideDetail extends GuideSummary {
   categoryId?: number;
   steps: string[];
   requirements: string[];
+  keywords?: string | null;
+  metaDescription?: string | null;
 }
 
 export interface BlogSummary {
@@ -95,5 +97,32 @@ export interface DashboardStats {
   totalGuides: number;
   totalBlogs: number;
   totalBookmarks: number;
+}
 
+export interface Tag {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface HeroSlide {
+  id: number;
+  guideId: number | null;
+  imageUrl: string;
+  title: string;
+  subtitle: string | null;
+  buttonText: string | null;
+  buttonLink: string | null;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface HeroSlidePublic {
+  id: number;
+  guideSlug: string | null;
+  imageUrl: string;
+  title: string;
+  subtitle: string | null;
+  buttonText: string | null;
+  buttonLink: string | null;
 }

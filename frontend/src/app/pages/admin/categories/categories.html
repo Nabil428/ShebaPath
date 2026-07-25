@@ -1,1 +1,45 @@
-<p>categories works!</p>
+<section class="container page">
+  <a class="back-link" routerLink="/admin/dashboard">&larr; Dashboard</a>
+  <span class="tag">Admin</span>
+  <h1>Categories</h1>
+
+  @if (errorMessage()) {
+    <div class="error-banner">{{ errorMessage() }}</div>
+  }
+
+  <div class="card form-card">
+    <h3>Add a category</h3>
+    <div class="field-row">
+      <input type="text" placeholder="Name" [ngModel]="newName()" (ngModelChange)="newName.set($event)" />
+      <input type="text" placeholder="Description (optional)" [ngModel]="newDescription()" (ngModelChange)="newDescription.set($event)" />
+      <button class="btn btn-primary" type="button" (click)="create()">Add</button>
+    </div>
+  </div>
+
+  <table class="admin-table">
+    <thead><tr><th>Name</th><th>Slug</th><th>Description</th><th></th></tr></thead>
+    <tbody>
+      @for (c of categories(); track c.id) {
+        <tr>
+          @if (editingId() === c.id) {
+            <td><input type="text" [ngModel]="editName()" (ngModelChange)="editName.set($event)" /></td>
+            <td>{{ c.slug }}</td>
+            <td><input type="text" [ngModel]="editDescription()" (ngModelChange)="editDescription.set($event)" /></td>
+            <td class="row-actions">
+              <button class="btn btn-primary" type="button" (click)="saveEdit(c.id)">Save</button>
+              <button class="btn btn-outline" type="button" (click)="cancelEdit()">Cancel</button>
+            </td>
+          } @else {
+            <td>{{ c.name }}</td>
+            <td>{{ c.slug }}</td>
+            <td>{{ c.description }}</td>
+            <td class="row-actions">
+              <button class="btn btn-outline" type="button" (click)="startEdit(c)">Edit</button>
+              <button class="btn btn-outline danger" type="button" (click)="remove(c.id)">Delete</button>
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

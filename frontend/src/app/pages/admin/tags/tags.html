@@ -1,1 +1,31 @@
-<p>tags works!</p>
+<section class="container page">
+  <a class="back-link" routerLink="/admin/dashboard">&larr; Dashboard</a>
+  <span class="tag">Admin</span>
+  <h1>Tags</h1>
+
+  @if (errorMessage()) {
+    <div class="error-banner">{{ errorMessage() }}</div>
+  }
+
+  <div class="card form-card">
+    <div class="field-row">
+      <input type="text" placeholder="New tag name" [ngModel]="newName()" (ngModelChange)="newName.set($event)" />
+      <button class="btn btn-primary" type="button" (click)="create()">Add</button>
+    </div>
+  </div>
+
+  <div class="tag-list">
+    @for (t of tags(); track t.id) {
+      <div class="tag-row">
+        @if (editingId() === t.id) {
+          <input type="text" [ngModel]="editName()" (ngModelChange)="editName.set($event)" />
+          <button class="btn btn-primary" type="button" (click)="saveEdit(t.id)">Save</button>
+        } @else {
+          <span>#{{ t.name }}</span>
+          <button class="btn btn-outline" type="button" (click)="startEdit(t)">Edit</button>
+          <button class="btn btn-outline danger" type="button" (click)="remove(t.id)">Delete</button>
+        }
+      </div>
+    }
+  </div>
+</section>

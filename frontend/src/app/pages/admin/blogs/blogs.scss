@@ -1,0 +1,4 @@
+.section-head { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
+.admin-table { width: 100%; border-collapse: collapse; th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #e5e7eb; } }
+.row-actions { display: flex; gap: 8px; }
+.danger { color: #dc2626; border-color: #dc2626; }

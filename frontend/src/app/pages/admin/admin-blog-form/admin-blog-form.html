@@ -1,0 +1,40 @@
+<section class="container page">
+  <a class="back-link" routerLink="/admin/blogs">&larr; Dashboard</a>
+  <span class="tag">Admin</span>
+  <h1>{{ isEdit ? 'Edit post' : 'New post' }}</h1>
+
+  <div class="card form-card">
+    @if (errorMessage()) {
+      <div class="error-banner">{{ errorMessage() }}</div>
+    }
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="field">
+        <label for="slug">Slug (URL, lowercase, hyphens only)</label>
+        <input id="slug" type="text" formControlName="slug" />
+      </div>
+      <div class="field">
+        <label for="title">Title</label>
+        <input id="title" type="text" formControlName="title" />
+      </div>
+      <div class="field">
+        <label for="excerpt">Excerpt</label>
+        <textarea id="excerpt" rows="2" formControlName="excerpt"></textarea>
+      </div>
+      <div class="field">
+        <label for="coverImageUrl">Cover image URL (optional)</label>
+        <input id="coverImageUrl" type="text" formControlName="coverImageUrl" />
+      </div>
+      <div class="field">
+        <label for="tagsText">Tags (comma separated)</label>
+        <input id="tagsText" type="text" formControlName="tagsText" />
+      </div>
+      <div class="field">
+        <label for="content">Content</label>
+        <textarea id="content" rows="12" formControlName="content"></textarea>
+      </div>
+      <button class="btn btn-primary" type="submit" [disabled]="saving()">
+        {{ saving() ? 'Saving…' : 'Save post' }}
+      </button>
+    </form>
+  </div>
+</section>

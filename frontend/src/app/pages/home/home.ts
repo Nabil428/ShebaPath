@@ -4,6 +4,8 @@ import { GuidesService } from '../../core/services/guides.service';
 import { BlogService } from '../../core/services/blog.service';
 import { GuideSummary, BlogSummary } from '../../core/models/models';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
+import { HeroSlidesService } from '../../core/services/hero-slides.service';
+import { HeroSlidePublic } from '../../core/models/models';
 
 @Component({
   selector: 'app-home',
@@ -18,15 +20,18 @@ export class HomePage implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly translateSync = inject(TranslateSyncService);
+  private readonly heroSlidesService = inject(HeroSlidesService);
 
   readonly guides = signal<GuideSummary[]>([]);
   readonly posts = signal<BlogSummary[]>([]);
+  readonly heroSlides = signal<HeroSlidePublic[]>([]);
   readonly loading = signal(true);
 
   readonly slideIndex = signal(0);
   readonly searchQuery = signal('');
 
   ngOnInit(): void {
+    this.heroSlidesService.list().subscribe((slides) => this.heroSlides.set(slides));
     this.guidesService.list().subscribe((guides) => {
       this.guides.set(guides.slice(0, 5));
       this.translateSync.resync();
@@ -41,14 +46,16 @@ export class HomePage implements OnInit {
     this.destroyRef.onDestroy(() => clearInterval(timer));
   }
 
+  private get slideCount(): number {
+    return this.heroSlides().length || this.posts().length || 1;
+  }
+
   nextSlide(): void {
-    const total = this.posts().length || 1;
-    this.slideIndex.set((this.slideIndex() + 1) % total);
+    this.slideIndex.set((this.slideIndex() + 1) % this.slideCount);
   }
 
   prevSlide(): void {
-    const total = this.posts().length || 1;
-    this.slideIndex.set((this.slideIndex() - 1 + total) % total);
+    this.slideIndex.set((this.slideIndex() - 1 + this.slideCount) % this.slideCount);
   }
 
   goToSlide(i: number): void {

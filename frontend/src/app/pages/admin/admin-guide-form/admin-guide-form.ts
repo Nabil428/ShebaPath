@@ -105,7 +105,7 @@ export class AdminGuideFormPage implements OnInit {
       : this.admin.createGuide(payload);
 
     request.subscribe({
-      next: () => this.router.navigate(['/admin']),
+      next: () => this.router.navigate(['/admin/guides']),
       error: (err: HttpErrorResponse) => {
         this.saving.set(false);
         this.errorMessage.set(err.error?.error ?? 'Could not save this guide.');

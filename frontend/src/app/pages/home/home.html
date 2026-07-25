@@ -1,16 +1,83 @@
 <section class="hero">
   <div class="container hero-inner">
-    <span class="tag">Independent Citizen Guide</span>
-    <h1>Get your Bangladesh government paperwork done, step by step.</h1>
-    <p class="lede">
-      Clear, plain-language guides for driving licences, passports, National ID, birth
-      certificates and trade licences — the documents you need, the offices to visit, and what
-      each one actually costs.
-    </p>
-    <div class="cta-row">
-      <a class="btn btn-primary" routerLink="/guides">Browse all guides</a>
-      <a class="btn btn-outline" routerLink="/register">Create a free account</a>
+    <div class="hero-copy">
+      <span class="tag">Independent Citizen Guide</span>
+      <h1>Get your Bangladesh government paperwork done, step by step.</h1>
+      <p class="lede">
+        Clear, plain-language guides for driving licences, passports, National ID, birth
+        certificates, trade licences and more — the documents you need, the offices to visit,
+        and what each one actually costs.
+      </p>
+
+      <form class="home-search" (submit)="onSearchSubmit($event)">
+        <input
+          type="search"
+          class="notranslate"
+          placeholder="Search for a service, e.g. 'passport' or 'trade licence'…"
+          (input)="onSearchInput($event)"
+        />
+        <button class="btn btn-primary" type="submit">Search</button>
+      </form>
+
+      <div class="cta-row">
+        <a class="btn btn-outline" routerLink="/guides">Browse all guides</a>
+        <a class="btn btn-outline" routerLink="/register">Create a free account</a>
+      </div>
     </div>
+
+    @if (heroSlides().length) {
+      <div class="hero-slider">
+        @for (slide of heroSlides(); track slide.id; let i = $index) {
+          <a
+            class="slide image-slide"
+            [class.active]="i === slideIndex()"
+            [style.backgroundImage]="'url(' + slide.imageUrl + ')'"
+            [routerLink]="slide.guideSlug ? ['/guides', slide.guideSlug] : (slide.buttonLink || '/guides')"
+          >
+            <div class="slide-overlay">
+              @if (slide.subtitle) { <span class="slide-tag">{{ slide.subtitle }}</span> }
+              <h3>{{ slide.title }}</h3>
+              @if (slide.buttonText) { <span class="slide-cta">{{ slide.buttonText }} &rarr;</span> }
+            </div>
+          </a>
+        }
+        <div class="slide-dots">
+          @for (slide of heroSlides(); track slide.id; let i = $index) {
+            <button type="button" class="dot" [class.active]="i === slideIndex()" (click)="goToSlide(i)" [attr.aria-label]="'Go to slide ' + (i + 1)"></button>
+          }
+        </div>
+        <button class="slide-nav prev" type="button" (click)="prevSlide()" aria-label="Previous slide">&larr;</button>
+        <button class="slide-nav next" type="button" (click)="nextSlide()" aria-label="Next slide">&rarr;</button>
+      </div>
+    } @else if (posts().length) {
+      <div class="hero-slider">
+        @for (post of posts(); track post.slug; let i = $index) {
+          <a
+            class="slide"
+            [class.active]="i === slideIndex()"
+            [class]="'gradient-' + (i % 4)"
+            [routerLink]="['/blog', post.slug]"
+          >
+            <span class="slide-tag">From the blog</span>
+            <h3>{{ post.title }}</h3>
+            <p>{{ post.excerpt }}</p>
+          </a>
+        }
+        <div class="slide-dots">
+          @for (post of posts(); track post.slug; let i = $index) {
+            <button
+              type="button"
+              class="dot"
+              [class.active]="i === slideIndex()"
+              (click)="goToSlide(i)"
+              [attr.aria-label]="'Go to slide ' + (i + 1)"
+            ></button>
+          }
+        </div>
+        <button class="slide-nav prev" type="button" (click)="prevSlide()" aria-label="Previous slide">&larr;</button>
+        <button class="slide-nav next" type="button" (click)="nextSlide()" aria-label="Next slide">&rarr;</button>
+      </div>
+    }
   </div>
 </section>
 

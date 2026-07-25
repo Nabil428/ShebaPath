@@ -16,4 +16,8 @@ export class GuidesService {
   get(slug: string): Observable<GuideDetail> {
     return this.http.get<GuideDetail>(this.api.endpoint(`guides/${slug}`));
   }
+
+  related(slug: string): Observable<GuideSummary[]> {
+    return this.http.get<GuideSummary[]>(this.api.endpoint(`guides/${slug}/related`));
+  }
 }

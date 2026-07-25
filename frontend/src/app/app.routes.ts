@@ -69,63 +69,65 @@ export const routes: Routes = [
   },
 
   {
+    path: 'admin/dashboard',
+    loadComponent: () =>
+      import('./pages/admin/dashboard/dashboard')
+        .then((m) => m.Dashboard),
+    canActivate: [authGuard],
+    title: 'Admin Dashboard - ShebaPath',
+  },
+
+  {
+    path: 'admin/guides',
+    loadComponent: () =>
+      import('./pages/admin/guides/guides')
+        .then((m) => m.Guides),
+    canActivate: [authGuard],
+    title: 'Manage Guides',
+  },
+
+  {
+    path: 'admin/blogs',
+    loadComponent: () =>
+      import('./pages/admin/blogs/blogs')
+        .then((m) => m.Blogs),
+    canActivate: [authGuard],
+    title: 'Manage Blogs',
+  },
+
+  {
+    path: 'admin/categories',
+    loadComponent: () =>
+      import('./pages/admin/categories/categories')
+        .then((m) => m.Categories),
+    canActivate: [authGuard],
+    title: 'Categories',
+  },
+
+  {
+    path: 'admin/tags',
+    loadComponent: () =>
+      import('./pages/admin/tags/tags')
+        .then((m) => m.Tags),
+    canActivate: [authGuard],
+    title: 'Tags',
+  },
+
+  {
+    path: 'admin/hero-slider',
+    loadComponent: () =>
+      import('./pages/admin/hero-slider/hero-slider')
+        .then((m) => m.HeroSlider),
+    canActivate: [authGuard],
+    title: 'Hero Slider',
+  },
+
+  // IMPORTANT: the wildcard/404 route must always be LAST — it matches
+  // every path, so anything placed after it (as it was before) is
+  // unreachable and silently falls through to this 404 page instead.
+  {
     path: '**',
     loadComponent: () => import('./pages/not-found/not-found').then((m) => m.NotFoundPage),
     title: 'Page not found — ShebaPath',
   },
-  {
-  path: 'admin/dashboard',
-  loadComponent: () =>
-    import('./pages/admin/dashboard/dashboard')
-      .then((m) => m.Dashboard),
-  canActivate: [authGuard],
-  title: 'Admin Dashboard - ShebaPath',
-},
-
-{
-  path: 'admin/guides',
-  loadComponent: () =>
-    import('./pages/admin/guides/guides')
-      .then((m) => m.Guides),
-  canActivate: [authGuard],
-  title: 'Manage Guides',
-},
-
-{
-  path: 'admin/blogs',
-  loadComponent: () =>
-    import('./pages/admin/blogs/blogs')
-      .then((m) => m.Blogs),
-  canActivate: [authGuard],
-  title: 'Manage Blogs',
-},
-
-{
-  path: 'admin/categories',
-  loadComponent: () =>
-    import('./pages/admin/categories/categories')
-      .then((m) => m.Categories),
-  canActivate: [authGuard],
-  title: 'Categories',
-},
-
-{
-  path: 'admin/tags',
-  loadComponent: () =>
-    import('./pages/admin/tags/tags')
-      .then((m) => m.Tags),
-  canActivate: [authGuard],
-  title: 'Tags',
-},
-
-{
-  path: 'admin/hero-slider',
-  loadComponent: () =>
-    import('./pages/admin/hero-slider/hero-slider')
-      .then((m) => m.HeroSlider),
-  canActivate: [authGuard],
-  title: 'Hero Slider',
-},
-
-
 ];

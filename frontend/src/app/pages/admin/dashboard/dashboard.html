@@ -1,80 +1,45 @@
 <app-admin-nav />
 
-@if (loading) {
-
-<div class="text-center py-5">
-    <div class="spinner-border text-primary"></div>
-</div>
-
-} @else {
-
-<div class="container py-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-
-        <div>
-            <h2 class="fw-bold mb-0">Admin Dashboard</h2>
-            <small class="text-muted">
-                Welcome to ShebaPath CMS
-            </small>
-        </div>
-
-        <div>
-
-            <a routerLink="/admin/guides"
-               class="btn btn-primary me-2">
-                + Guide
-            </a>
-
-            <a routerLink="/admin/blogs"
-               class="btn btn-success">
-                + Blog
-            </a>
-
-        </div>
-
+<section class="container page">
+  @if (loading) {
+    <div class="dash-loading">Loading dashboard…</div>
+  } @else {
+    <div class="dash-header">
+      <div>
+        <span class="tag">Admin</span>
+        <h1>Admin Dashboard</h1>
+        <p class="lede">Welcome to ShebaPath CMS</p>
+      </div>
+      <div class="dash-actions">
+        <a routerLink="/admin/guides/new" class="btn btn-primary">+ Guide</a>
+        <a routerLink="/admin/blogs/new" class="btn btn-outline">+ Blog</a>
+      </div>
     </div>
 
-    <div class="row g-4">
+    <div class="stat-grid">
+      <div class="stat-card accent-green">
+        <span class="stat-icon">📘</span>
+        <span class="stat-label">Total Guides</span>
+        <span class="stat-value">{{ stats.totalGuides }}</span>
+      </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6>Total Guides</h6>
-                    <h2>{{ stats.totalGuides }}</h2>
-                </div>
-            </div>
-        </div>
+      <div class="stat-card accent-blue">
+        <span class="stat-icon">📰</span>
+        <span class="stat-label">Total Blogs</span>
+        <span class="stat-value">{{ stats.totalBlogs }}</span>
+      </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6>Total Blogs</h6>
-                    <h2>{{ stats.totalBlogs }}</h2>
-                </div>
-            </div>
-        </div>
+      <div class="stat-card accent-purple">
+        <span class="stat-icon">👤</span>
+        <span class="stat-label">Total Users</span>
+        <span class="stat-value">{{ stats.totalUsers }}</span>
+      </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6>Total Users</h6>
-                    <h2>{{ stats.totalUsers }}</h2>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h6>Bookmarks</h6>
-                    <h2>{{ stats.totalBookmarks }}</h2>
-                </div>
-            </div>
-        </div>
-
+      <div class="stat-card accent-red">
+        <span class="stat-icon">⭐</span>
+        <span class="stat-label">Bookmarks</span>
+        <span class="stat-value">{{ stats.totalBookmarks }}</span>
+      </div>
     </div>
-
-</div>
-
-}
+  }
+</section>

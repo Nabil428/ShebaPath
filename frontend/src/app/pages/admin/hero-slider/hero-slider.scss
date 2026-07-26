@@ -1,14 +1,33 @@
-.form-card { margin: 20px 0; padding: 20px; }
-.field { margin-bottom: 14px; }
-.field-row { display: grid; grid-template-columns: 1fr 1fr 100px; gap: 12px; }
-label { display: block; font-weight: 600; margin-bottom: 4px; }
-input[type="text"], input[type="number"] {
-  width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit;
+.form-card {
+  margin: 20px 0 28px;
+  padding: 24px 28px;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  max-width: 720px;
+  h3 { margin: 0 0 16px; font-size: 1.05rem; color: var(--color-green-900, #013220); }
 }
-.checkbox-row { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
-.preview { max-width: 220px; margin-top: 8px; border-radius: 8px; display: block; }
-.thumb { width: 80px; height: 45px; object-fit: cover; border-radius: 6px; }
+.field { margin-bottom: 16px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr 100px; gap: 12px; }
+label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; color: var(--color-green-900, #013220); }
+input[type="text"], input[type="number"] {
+  width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; font: inherit; background: #fafafa;
+  &:focus { outline: none; border-color: var(--color-green-700, #0a6b3e); background: #fff; box-shadow: 0 0 0 3px rgba(10, 107, 62, 0.12); }
+}
+input[type="file"] { margin-bottom: 8px; }
+.checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.preview { max-width: 240px; margin-top: 10px; border-radius: 10px; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.thumb { width: 84px; height: 47px; object-fit: cover; border-radius: 8px; }
 .form-actions { display: flex; gap: 10px; }
-.admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #e5e7eb; } }
+.admin-table {
+  width: 100%; border-collapse: collapse; margin-top: 24px;
+  background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  th { text-align: left; padding: 12px 14px; background: #f3f4f6; font-size: 0.82rem; text-transform: uppercase; color: var(--color-muted, #6b7280); }
+  td { padding: 12px 14px; border-top: 1px solid #f0f0f0; }
+}
 .row-actions { display: flex; gap: 8px; }
 .danger { color: #dc2626; border-color: #dc2626; }
+.back-link {
+  display: inline-block; margin-bottom: 12px; font-size: 0.9rem;
+  color: var(--color-muted, #6b7280); text-decoration: none;
+  &:hover { color: var(--color-green-700, #0a6b3e); }
+}

@@ -1,19 +1,22 @@
 .admin-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 16px 0 24px;
-  padding-bottom: 16px;
+  gap: 8px;
+  max-width: 1080px;
+  margin: 20px auto 24px;
+  padding: 12px 24px 20px;
   border-bottom: 1px solid #e5e7eb;
 
   a {
-    padding: 6px 14px;
+    padding: 7px 16px;
     border-radius: 999px;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     font-weight: 600;
     color: var(--color-green-700, #0a6b3e);
     background: rgba(16, 135, 76, 0.08);
     text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.15s ease;
 
     &.active {
       background: var(--color-green-700, #0a6b3e);

@@ -16,6 +16,7 @@ import { Settings } from './pages/admin/settings/settings';
 
 
 import { authGuard, guestGuard } from './core/guards/auth.guard';
+import { adminGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -73,7 +74,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/dashboard/dashboard')
         .then((m) => m.Dashboard),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Admin Dashboard - ShebaPath',
   },
 
@@ -82,7 +83,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/guides/guides')
         .then((m) => m.Guides),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Manage Guides',
   },
 
@@ -90,7 +91,7 @@ export const routes: Routes = [
     path: 'admin/guides/new',
     loadComponent: () =>
       import('./pages/admin/admin-guide-form/admin-guide-form').then((m) => m.AdminGuideFormPage),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'New Guide',
   },
 
@@ -98,7 +99,7 @@ export const routes: Routes = [
     path: 'admin/guides/:slug/edit',
     loadComponent: () =>
       import('./pages/admin/admin-guide-form/admin-guide-form').then((m) => m.AdminGuideFormPage),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Edit Guide',
   },
 
@@ -107,7 +108,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/blogs/blogs')
         .then((m) => m.Blogs),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Manage Blogs',
   },
 
@@ -115,7 +116,7 @@ export const routes: Routes = [
     path: 'admin/blogs/new',
     loadComponent: () =>
       import('./pages/admin/admin-blog-form/admin-blog-form').then((m) => m.AdminBlogFormPage),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'New Post',
   },
 
@@ -123,7 +124,7 @@ export const routes: Routes = [
     path: 'admin/blogs/:slug/edit',
     loadComponent: () =>
       import('./pages/admin/admin-blog-form/admin-blog-form').then((m) => m.AdminBlogFormPage),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Edit Post',
   },
 
@@ -132,7 +133,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/categories/categories')
         .then((m) => m.Categories),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Categories',
   },
 
@@ -141,7 +142,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/tags/tags')
         .then((m) => m.Tags),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Tags',
   },
 
@@ -150,7 +151,7 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/admin/hero-slider/hero-slider')
         .then((m) => m.HeroSlider),
-    canActivate: [authGuard],
+    canActivate: [adminGuard],
     title: 'Hero Slider',
   },
 

@@ -81,6 +81,7 @@ if (swaggerEnabled)
 }
 
 app.UseRateLimiter();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -344,7 +345,7 @@ app.MapGet($"{apiBase}/guides/{{slug}}", async (string slug, NpgsqlDataSource db
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
         $@"SELECT g.id, g.slug, g.category_id, c.name AS category, g.title, g.summary, g.steps, g.requirements,
-           g.fees, g.processing_time, g.office, g.published_at, g.last_verified,
+           g.fees, g.processing_time, g.office, g.published_at, g.last_verified, g.keywords, g.meta_description,
            COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM guide_tags gt JOIN tags t ON t.id = gt.tag_id WHERE gt.guide_id = g.id), ARRAY[]::text[]) AS tag_names
            FROM bd_guides g JOIN categories c ON c.id = g.category_id WHERE g.slug = $1", conn);
     cmd.Parameters.AddWithValue(slug);
@@ -365,7 +366,9 @@ app.MapGet($"{apiBase}/guides/{{slug}}", async (string slug, NpgsqlDataSource db
         office = reader.IsDBNull(10) ? null : reader.GetString(10),
         publishedAt = reader.GetDateTime(11),
         lastVerified = reader.GetDateTime(12),
-        tags = reader.GetFieldValue<string[]>(13)
+        keywords = reader.IsDBNull(13) ? null : reader.GetString(13),
+        metaDescription = reader.IsDBNull(14) ? null : reader.GetString(14),
+        tags = reader.GetFieldValue<string[]>(15)
     });
 });
 
@@ -473,6 +476,85 @@ app.MapDelete($"{apiBase}/admin/tags/{{id:int}}", async (int id, HttpContext htt
     var rows = await cmd.ExecuteNonQueryAsync();
     return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
 }).RequireAuthorization();
+
+app.MapPost($"{apiBase}/admin/tags", async (TagDto dto, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    try
+    {
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO tags (name, slug) VALUES ($1, $2) RETURNING id", conn);
+        cmd.Parameters.AddWithValue(dto.Name.Trim());
+        cmd.Parameters.AddWithValue(Slugify(dto.Name));
+        var id = (int)(await cmd.ExecuteScalarAsync())!;
+        return Results.Ok(new { id });
+    }
+    catch (PostgresException ex) when (ex.SqlState == "23505")
+    {
+        return Results.Conflict(new { error = "A tag with this name already exists." });
+    }
+}).RequireAuthorization();
+
+app.MapPut($"{apiBase}/admin/tags/{{id:int}}", async (int id, TagDto dto, HttpContext http, NpgsqlDataSource db) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("UPDATE tags SET name=$1, slug=$2 WHERE id=$3", conn);
+    cmd.Parameters.AddWithValue(dto.Name.Trim());
+    cmd.Parameters.AddWithValue(Slugify(dto.Name));
+    cmd.Parameters.AddWithValue(id);
+    var rows = await cmd.ExecuteNonQueryAsync();
+    return rows == 0 ? Results.NotFound() : Results.Ok(new { success = true });
+}).RequireAuthorization();
+
+// ---------- Admin: image upload ----------
+// NOTE: Render's free tier disk is ephemeral — uploaded files are wiped on
+// every redeploy/restart. Fine for quick previews, not for permanent hosting.
+// For production, swap this for a real object-storage service later.
+app.MapPost($"{apiBase}/admin/upload", async (HttpContext http, IWebHostEnvironment env) =>
+{
+    if (!IsAdmin(http)) return Forbidden();
+
+    var form = await http.Request.ReadFormAsync();
+    var file = form.Files.FirstOrDefault();
+    if (file == null || file.Length == 0) return Results.BadRequest(new { error = "No file uploaded." });
+    if (file.Length > 5 * 1024 * 1024) return Results.BadRequest(new { error = "File too large (max 5MB)." });
+
+    var webRoot = string.IsNullOrEmpty(env.WebRootPath)
+        ? Path.Combine(env.ContentRootPath, "wwwroot")
+        : env.WebRootPath;
+    var uploadsPath = Path.Combine(webRoot, "uploads");
+    Directory.CreateDirectory(uploadsPath);
+
+    var extension = Path.GetExtension(file.FileName);
+    var fileName = $"{Guid.NewGuid()}{extension}";
+    var filePath = Path.Combine(uploadsPath, fileName);
+
+    await using (var stream = File.Create(filePath))
+    {
+        await file.CopyToAsync(stream);
+    }
+
+    var imageUrl = $"{http.Request.Scheme}://{http.Request.Host}/uploads/{fileName}";
+    return Results.Ok(new { imageUrl });
+}).RequireAuthorization();
+
+// ---------- Related guides ----------
+app.MapGet($"{apiBase}/guides/{{slug}}/related", async (string slug, NpgsqlDataSource db) =>
+{
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand(
+        $@"SELECT {GuideSummaryColumns} FROM bd_guides g JOIN categories c ON c.id = g.category_id
+           WHERE g.is_published = true AND g.slug != $1
+           AND g.category_id = (SELECT category_id FROM bd_guides WHERE slug = $1)
+           ORDER BY g.is_featured DESC, g.title LIMIT 3", conn);
+    cmd.Parameters.AddWithValue(slug);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    var results = new List<object>();
+    while (await reader.ReadAsync()) results.Add(ReadGuideSummary(reader));
+    return Results.Ok(results);
+});
 
 // ---------- Admin: Guides CRUD ----------
 var adminGuides = app.MapGroup($"{apiBase}/admin/guides").RequireAuthorization();
@@ -775,4 +857,5 @@ record AdminGuideRequest(
     bool IsFeatured, bool IsPublished, List<string>? Tags);
 record AdminBlogRequest(string Slug, string Title, string Excerpt, string Content, string? CoverImageUrl, List<string>? Tags);
 record CategoryDto(string Name, string? Description);
+record TagDto(string Name);
 record HeroSlideDto(int? GuideId, string ImageUrl, string Title, string? Subtitle, string? ButtonText, string? ButtonLink, int DisplayOrder, bool IsActive);

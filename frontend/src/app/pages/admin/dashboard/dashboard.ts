@@ -1,11 +1,13 @@
+
 import { Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AdminService, DashboardStats } from '../../../core/services/admin.service';
+import { AdminNavComponent } from '../../../Shared/admin-nav/admin-nav';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink,AdminNavComponent],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss'
 })

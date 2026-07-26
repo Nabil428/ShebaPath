@@ -568,7 +568,7 @@ adminGuides.MapPost("/", async (AdminGuideRequest req, HttpContext http, NpgsqlD
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO bd_guides (slug, category_id, title, summary, steps, requirements, fees, processing_time,
               office, featured_image, keywords, meta_description, is_featured, is_published, last_verified)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now()) RETURNING id", conn);
+              VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14, now()) RETURNING id", conn);
         cmd.Parameters.AddWithValue(req.Slug.Trim());
         cmd.Parameters.AddWithValue(req.CategoryId);
         cmd.Parameters.AddWithValue(req.Title.Trim());
@@ -601,7 +601,7 @@ adminGuides.MapPut("/{slug}", async (string slug, AdminGuideRequest req, HttpCon
     if (!IsAdmin(http)) return Forbidden();
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        @"UPDATE bd_guides SET category_id=$1, title=$2, summary=$3, steps=$4, requirements=$5,
+        @"UPDATE bd_guides SET category_id=$1, title=$2, summary=$3, steps=$4::jsonb, requirements=$5::jsonb,
           fees=$6, processing_time=$7, office=$8, featured_image=$9, keywords=$10, meta_description=$11,
           is_featured=$12, is_published=$13, last_verified=now(), updated_at=now()
           WHERE slug=$14 RETURNING id", conn);
@@ -650,7 +650,7 @@ adminBlog.MapPost("/", async (AdminBlogRequest req, HttpContext http, NpgsqlData
     {
         await using var cmd = new NpgsqlCommand(
             @"INSERT INTO bd_blog_posts (slug, title, excerpt, content, cover_image_url, tags)
-              VALUES ($1, $2, $3, $4, $5, $6)", conn);
+              VALUES ($1, $2, $3, $4, $5, $6::jsonb)", conn);
         cmd.Parameters.AddWithValue(req.Slug.Trim());
         cmd.Parameters.AddWithValue(req.Title.Trim());
         cmd.Parameters.AddWithValue(req.Excerpt.Trim());
@@ -671,7 +671,7 @@ adminBlog.MapPut("/{slug}", async (string slug, AdminBlogRequest req, HttpContex
     if (!IsAdmin(http)) return Forbidden();
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "UPDATE bd_blog_posts SET title=$1, excerpt=$2, content=$3, cover_image_url=$4, tags=$5 WHERE slug=$6", conn);
+        "UPDATE bd_blog_posts SET title=$1, excerpt=$2, content=$3, cover_image_url=$4, tags=$5::jsonb WHERE slug=$6", conn);
     cmd.Parameters.AddWithValue(req.Title.Trim());
     cmd.Parameters.AddWithValue(req.Excerpt.Trim());
     cmd.Parameters.AddWithValue(req.Content);

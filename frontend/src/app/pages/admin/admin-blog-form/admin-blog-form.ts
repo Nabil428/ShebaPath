@@ -4,6 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { BlogService } from '../../../core/services/blog.service';
 import { AdminService } from '../../../core/services/admin.service';
+import { AdminNavComponent } from '../../../Shared/admin-nav/admin-nav';
 
 function csvToArray(text: string): string[] {
   return text.split(',').map((s) => s.trim()).filter(Boolean);
@@ -12,7 +13,7 @@ function csvToArray(text: string): string[] {
 @Component({
   selector: 'app-admin-blog-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AdminNavComponent],
   templateUrl: './admin-blog-form.html',
   styleUrl: './admin-blog-form.scss',
 })

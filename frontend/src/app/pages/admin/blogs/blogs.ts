@@ -4,11 +4,12 @@ import { DatePipe } from '@angular/common';
 import { BlogService } from '../../../core/services/blog.service';
 import { AdminService } from '../../../core/services/admin.service';
 import { BlogSummary } from '../../../core/models/models';
+import { AdminNavComponent } from '../../../Shared/admin-nav/admin-nav';
 
 @Component({
   selector: 'app-admin-blogs',
   standalone: true,
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, AdminNavComponent],
   templateUrl: './blogs.html',
   styleUrl: './blogs.scss',
 })

@@ -3,11 +3,12 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AdminService } from '../../../core/services/admin.service';
 import { Tag } from '../../../core/models/models';
+import { AdminNavComponent } from '../../../Shared/admin-nav/admin-nav';
 
 @Component({
   selector: 'app-admin-tags',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, AdminNavComponent],
   templateUrl: './tags.html',
   styleUrl: './tags.scss',
 })

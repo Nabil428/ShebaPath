@@ -5,6 +5,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { GuidesService } from '../../../core/services/guides.service';
 import { AdminService } from '../../../core/services/admin.service';
 import { Category } from '../../../core/models/models';
+import { AdminNavComponent } from '../../../Shared/admin-nav/admin-nav';
 
 function linesToArray(text: string): string[] {
   return text.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -16,7 +17,7 @@ function csvToArray(text: string): string[] {
 @Component({
   selector: 'app-admin-guide-form',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AdminNavComponent],
   templateUrl: './admin-guide-form.html',
   styleUrl: './admin-guide-form.scss',
 })

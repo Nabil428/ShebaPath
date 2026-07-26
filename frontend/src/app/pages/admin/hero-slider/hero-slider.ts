@@ -3,11 +3,12 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AdminService } from '../../../core/services/admin.service';
 import { HeroSlide } from '../../../core/models/models';
+import { AdminNavComponent } from '../../../Shared/admin-nav/admin-nav';
 
 @Component({
   selector: 'app-admin-hero-slider',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AdminNavComponent],
   templateUrl: './hero-slider.html',
   styleUrl: './hero-slider.scss',
 })

@@ -1,0 +1,27 @@
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+
+  a {
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-green-700, #0a6b3e);
+    background: rgba(16, 135, 76, 0.08);
+    text-decoration: none;
+
+    &.active {
+      background: var(--color-green-700, #0a6b3e);
+      color: #fff;
+    }
+
+    &:hover:not(.active) {
+      background: rgba(16, 135, 76, 0.16);
+    }
+  }
+}

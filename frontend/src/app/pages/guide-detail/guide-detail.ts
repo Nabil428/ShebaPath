@@ -1,3 +1,4 @@
+import { ShareButtonComponent } from './../../Shared/share-button/share-button';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { Meta, Title } from '@angular/platform-browser';
@@ -8,8 +9,8 @@ import { PdfExportService } from '../../core/services/pdf-export.service';
 import { AuthService } from '../../core/services/auth.service';
 import { BookmarkService } from '../../core/services/bookmark.service';
 import { GuideDetail } from '../../core/models/models';
-import { ShareButtonComponent } from '../../shared/share-button/share-button';
-import { TagChipsComponent } from '../../shared/tag-chips/tag-chips';
+
+import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
 import { GuideSummary } from '../../core/models/models';
 

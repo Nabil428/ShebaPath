@@ -88,15 +88,20 @@ export class HeroSlider implements OnInit {
     };
 
     const id = this.editingId();
-    const request = id ? this.admin.updateHeroSlide(id, payload) : this.admin.createHeroSlide(payload);
-    request.subscribe({
+    const onDone = {
       next: () => {
         this.saving.set(false);
         this.resetForm();
         this.refresh();
       },
       error: () => this.saving.set(false),
-    });
+    };
+
+    if (id) {
+      this.admin.updateHeroSlide(id, payload).subscribe(onDone);
+    } else {
+      this.admin.createHeroSlide(payload).subscribe(onDone);
+    }
   }
 
   remove(id: number): void {

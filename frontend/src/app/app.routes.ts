@@ -70,6 +70,26 @@ export const routes: Routes = [
   },
 
   {
+    path: 'terms',
+    loadComponent: () => import('./pages/terms/terms').then((m) => m.TermsPage),
+    title: 'Terms of Service - ShebaPath',
+  },
+
+  {
+    path: 'forgot-password',
+    loadComponent: () => import('./pages/forgot-password/forgot-password').then((m) => m.ForgotPasswordPage),
+    canActivate: [guestGuard],
+    title: 'Forgot Password - ShebaPath',
+  },
+
+  {
+    path: 'reset-password',
+    loadComponent: () => import('./pages/reset-password/reset-password').then((m) => m.ResetPasswordPage),
+    canActivate: [guestGuard],
+    title: 'Reset Password - ShebaPath',
+  },
+
+  {
     path: 'admin/dashboard',
     loadComponent: () =>
       import('./pages/admin/dashboard/dashboard')

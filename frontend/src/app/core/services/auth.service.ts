@@ -53,6 +53,22 @@ export class AuthService {
     );
   }
 
+  forgotPassword(email: string): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(this.api.endpoint('auth/forgot-password'), { email });
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(this.api.endpoint('auth/reset-password'), { token, newPassword });
+  }
+
+  deleteAccount(): Observable<{ success: boolean }> {
+    return this.http.delete<{ success: boolean }>(this.api.endpoint('account'), { withCredentials: true }).pipe(
+      tap(() => this.currentUserSignal.set(null)),
+    );
+  }
+
+ 
+
   updateAccount(payload: UpdateAccountPayload): Observable<AppUser> {
     this.loadingSignal.set(true);
     return this.http.patch<AppUser>(this.api.endpoint('account'), payload, { withCredentials: true }).pipe(

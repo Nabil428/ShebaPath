@@ -52,4 +52,11 @@ export class AccountPage {
   logout(): void {
     this.auth.logout().subscribe(() => this.router.navigate(['/']));
   }
+
+  deleteAccount(): void {
+    if (!confirm('This permanently deletes your account and saved guides. This cannot be undone. Continue?')) {
+      return;
+    }
+    this.auth.deleteAccount().subscribe(() => this.router.navigate(['/']));
+  }
 }

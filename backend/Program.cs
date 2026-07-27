@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.Net.Http.Json;
 using System.Threading.RateLimiting;
 using BCrypt.Net;
 using Microsoft.AspNetCore.Authentication;
@@ -30,6 +31,7 @@ var connectionStringBuilder = new NpgsqlConnectionStringBuilder
 };
 
 builder.Services.AddSingleton(new NpgsqlDataSourceBuilder(connectionStringBuilder.ConnectionString).Build());
+builder.Services.AddHttpClient();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -228,6 +230,13 @@ auth.MapPost("/logout", async (HttpContext http) =>
     return Results.Ok(new { success = true });
 });
 
+
+       
+         
+    
+
+
+
 auth.MapGet("/me", async (HttpContext http, NpgsqlDataSource db) =>
 {
     if (http.User.Identity?.IsAuthenticated != true) return Unauthorized();
@@ -260,6 +269,96 @@ app.MapPatch($"{apiBase}/account", async (UpdateAccountRequest req, HttpContext 
     if (!await reader.ReadAsync()) return Results.Problem("Failed to update account.");
     return Results.Ok(ReadUser(reader));
 }).RequireAuthorization();
+
+// DELETE endpoints
+app.MapDelete($"{apiBase}/account", async (HttpContext http, NpgsqlDataSource db) =>
+{
+    if (http.User.Identity?.IsAuthenticated != true) return Unauthorized();
+
+    var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("DELETE FROM bd_users WHERE id = $1", conn);
+    cmd.Parameters.AddWithValue(userId);
+    await cmd.ExecuteNonQueryAsync();
+
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Ok(new { success = true });
+}).RequireAuthorization();
+
+// forgot-password endpoint
+auth.MapPost("/forgot-password", async (ForgotPasswordRequest req, NpgsqlDataSource db, IHttpClientFactory httpFactory) =>
+{
+    var email = req.Email.Trim().ToLowerInvariant();
+    var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand(
+        "UPDATE bd_users SET reset_token = $1, reset_token_expires_at = now() + interval '1 hour' WHERE email = $2 RETURNING full_name",
+        conn);
+    cmd.Parameters.AddWithValue(token);
+    cmd.Parameters.AddWithValue(email);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    var found = await reader.ReadAsync();
+    await reader.CloseAsync();
+
+    if (found)
+    {
+        var resendApiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+        var siteUrl = Environment.GetEnvironmentVariable("SITE_URL") ?? "https://shebapath.vercel.app/bd-services";
+        if (!string.IsNullOrEmpty(resendApiKey))
+        {
+            var resetLink = $"{siteUrl}/reset-password?token={token}";
+            var client = httpFactory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendApiKey);
+            var emailPayload = new
+            {
+                from = Environment.GetEnvironmentVariable("RESEND_FROM_EMAIL") ?? "ShebaPath <onboarding@resend.dev>",
+                to = new[] { email },
+                subject = "Reset your ShebaPath password",
+                html = $"<p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href=\"{resetLink}\">{resetLink}</a></p><p>If you didn't request this, you can ignore this email.</p>"
+            };
+            try
+            {
+                await client.PostAsJsonAsync("https://api.resend.com/emails", emailPayload);
+            }
+            catch
+            {
+                // Log error if you have logging set up
+            }
+        }
+    }
+
+    return Results.Ok(new { success = true });
+}).RequireRateLimiting("auth");
+
+//reset-password endpoint
+auth.MapPost("/reset-password", async (ResetPasswordRequest req, NpgsqlDataSource db) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Token) || string.IsNullOrWhiteSpace(req.NewPassword))
+        return Results.BadRequest(new { error = "Token and new password are required." });
+    if (req.NewPassword.Length < 8)
+        return Results.BadRequest(new { error = "Password must be at least 8 characters." });
+
+    await using var conn = await db.OpenConnectionAsync();
+    await using var checkCmd = new NpgsqlCommand(
+        "SELECT id FROM bd_users WHERE reset_token = $1 AND reset_token_expires_at > now()", conn);
+    checkCmd.Parameters.AddWithValue(req.Token);
+    var userId = await checkCmd.ExecuteScalarAsync();
+    if (userId is null)
+        return Results.BadRequest(new { error = "This reset link is invalid or has expired." });
+
+    var hash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
+    await using var updateCmd = new NpgsqlCommand(
+        "UPDATE bd_users SET password_hash = $1, reset_token = NULL, reset_token_expires_at = NULL WHERE id = $2", conn);
+    updateCmd.Parameters.AddWithValue(hash);
+    updateCmd.Parameters.AddWithValue((int)userId);
+    await updateCmd.ExecuteNonQueryAsync();
+
+    return Results.Ok(new { success = true });
+}).RequireRateLimiting("auth");
+
+
+
 
 // ---------- Bookmarks ----------
 var bookmarks = app.MapGroup($"{apiBase}/account/bookmarks").RequireAuthorization();
@@ -847,6 +946,8 @@ static async Task SignInUser(HttpContext http, UserResponse user)
 
 record RegisterRequest(string Email, string Password, string FullName, string? Phone);
 record LoginRequest(string Email, string Password);
+record ForgotPasswordRequest(string Email);
+record ResetPasswordRequest(string Token, string NewPassword);
 record UpdateAccountRequest(string FullName, string? Phone);
 record UserResponse(int Id, string Email, string FullName, string? Phone, DateTime CreatedAt, bool IsAdmin);
 record AdminGuideRequest(

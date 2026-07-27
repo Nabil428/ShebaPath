@@ -2,6 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { GuidesService } from '../../core/services/guides.service';
 import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
+import { SkeletonCardComponent } from '../../Shared/skeleton-card/skeleton-card';
 import { GuideSummary } from '../../core/models/models';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
 
@@ -10,7 +11,7 @@ const PAGE_SIZE = 6;
 @Component({
   selector: 'app-guides-list',
   standalone: true,
-  imports: [RouterLink, TagChipsComponent],
+  imports: [RouterLink, TagChipsComponent, SkeletonCardComponent],
   templateUrl: './guides-list.html',
   styleUrl: './guides-list.scss',
 })

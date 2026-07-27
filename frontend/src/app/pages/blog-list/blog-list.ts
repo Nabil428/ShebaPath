@@ -1,19 +1,20 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { BlogService } from '../../core/services/blog.service';
+import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
+import { SkeletonCardComponent } from '../../Shared/skeleton-card/skeleton-card';
 import { BlogSummary } from '../../core/models/models';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
-import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
 
 const PAGE_SIZE = 5;
 
 @Component({
   selector: 'app-blog-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, TagChipsComponent],
+  imports: [RouterLink, TagChipsComponent, DatePipe, SkeletonCardComponent],
   templateUrl: './blog-list.html',
-  styleUrls: ['./blog-list.scss'],
+  styleUrl: './blog-list.scss',
 })
 export class BlogListPage implements OnInit {
   private readonly blogService = inject(BlogService);

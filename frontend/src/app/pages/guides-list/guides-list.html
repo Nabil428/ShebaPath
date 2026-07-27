@@ -7,11 +7,16 @@
     type="search"
     class="search-input notranslate"
     placeholder="Search guides by name, category or keyword…"
+    [value]="searchTerm()"
     (input)="onSearchInput($event)"
   />
 
   @if (loading()) {
-    <p>Loading guides…</p>
+    <div class="guide-grid">
+      @for (i of [1,2,3,4,5,6]; track i) {
+        <app-skeleton-card />
+      }
+    </div>
   } @else if (filtered().length === 0) {
     <p class="empty-note">No guides match "{{ searchTerm() }}".</p>
   } @else {
@@ -21,6 +26,7 @@
           <span class="tag">{{ guide.category }}</span>
           <h3>{{ guide.title }}</h3>
           <p>{{ guide.summary }}</p>
+          <app-tag-chips [tags]="guide.tags" />
           <div class="meta-row">
             @if (guide.fees) {
               <span>💰 {{ guide.fees }}</span>

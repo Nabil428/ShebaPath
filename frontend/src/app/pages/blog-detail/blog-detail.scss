@@ -1,19 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
-
-.hero-cover {
-  height: 380px;
-  background-size: cover;
-  background-position: center;
-  margin-bottom: -40px;
-}
-
-@media (max-width: 700px) {
-  .hero-cover { height: 220px; }
-}
-
-.article-page {
-  padding: 40px 0 80px;
-  max-width: 700px;
+.page {
+  padding: 40px 0 64px;
+  max-width: 680px;
 }
 
 .back-link {
@@ -21,93 +8,25 @@
   margin-bottom: 16px;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--color-muted, #6b7280);
-  text-decoration: none;
-
-  &:hover { color: var(--color-green-700, #0a6b3e); }
 }
 
-h1 {
-  font-size: 2.4rem;
-  line-height: 1.2;
-  margin: 14px 0 12px;
-  letter-spacing: -0.01em;
+.date {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  margin-bottom: 6px;
 }
 
-.excerpt {
-  font-size: 1.2rem;
-  color: var(--color-muted, #6b7280);
-  line-height: 1.5;
-  margin-bottom: 24px;
+.body {
+  font-size: 1.02rem;
+  line-height: 1.75;
+  white-space: pre-line;
 }
 
-.byline {
+.top-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
   flex-wrap: wrap;
-}
-
-.avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--color-green-700, #0a6b3e);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.9rem;
-  flex-shrink: 0;
-}
-
-.byline-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 160px;
-}
-
-.author {
-  font-weight: 600;
-  font-size: 0.92rem;
-  color: var(--color-green-900, #013220);
-}
-
-.meta {
-  font-size: 0.82rem;
-  color: var(--color-muted, #6b7280);
-}
-
-.byline-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.divider {
-  border: none;
-  border-top: 1px solid #e5e7eb;
-  margin: 24px 0 32px;
-}
-
-.article-body {
-  font-family: 'Lora', Georgia, serif;
-  font-size: 1.18rem;
-  line-height: 1.85;
-  color: #1a1a1a;
-
-  p {
-    margin: 0 0 1.5em;
-  }
-
-  p:first-of-type::first-letter {
-    font-size: 3.2em;
-    font-weight: 700;
-    float: left;
-    line-height: 0.85;
-    margin: 0.05em 0.08em 0 0;
-    color: var(--color-green-700, #0a6b3e);
-  }
 }

@@ -7,7 +7,6 @@
     type="search"
     class="search-input notranslate"
     placeholder="Search posts by title or keyword…"
-    [value]="searchTerm()"
     (input)="onSearchInput($event)"
   />
 
@@ -22,19 +21,11 @@
   } @else {
     <div class="post-list">
       @for (post of pageItems(); track post.slug) {
-        <a class="post-row" [routerLink]="['/blog', post.slug]">
-          <div class="post-row-text">
-            <span class="date">{{ post.publishedAt | date: 'longDate' }}</span>
-            <h3>{{ post.title }}</h3>
-            <p>{{ post.excerpt }}</p>
-            <app-tag-chips [tags]="post.tags" />
-          </div>
-          <div class="post-row-thumb" [class.placeholder]="!post.coverImageUrl"
-               [style.backgroundImage]="post.coverImageUrl ? 'url(' + post.coverImageUrl + ')' : null">
-            @if (!post.coverImageUrl) {
-              <span>{{ post.title.charAt(0) }}</span>
-            }
-          </div>
+        <a class="card post-card" [routerLink]="['/blog', post.slug]">
+          <h3>{{ post.title }}</h3>
+          <p>{{ post.excerpt }}</p>
+          <app-tag-chips [tags]="post.tags" />
+          <span class="date">{{ post.publishedAt | date: 'longDate' }}</span>
         </a>
       }
     </div>

@@ -228,13 +228,7 @@ auth.MapPost("/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Ok(new { success = true });
-});
-
-
-       
-         
-    
-
+});   
 
 
 auth.MapGet("/me", async (HttpContext http, NpgsqlDataSource db) =>
@@ -270,6 +264,7 @@ app.MapPatch($"{apiBase}/account", async (UpdateAccountRequest req, HttpContext 
     return Results.Ok(ReadUser(reader));
 }).RequireAuthorization();
 
+
 // DELETE endpoints
 app.MapDelete($"{apiBase}/account", async (HttpContext http, NpgsqlDataSource db) =>
 {
@@ -284,6 +279,7 @@ app.MapDelete($"{apiBase}/account", async (HttpContext http, NpgsqlDataSource db
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Ok(new { success = true });
 }).RequireAuthorization();
+
 
 // forgot-password endpoint
 auth.MapPost("/forgot-password", async (ForgotPasswordRequest req, NpgsqlDataSource db, IHttpClientFactory httpFactory) =>
@@ -356,9 +352,6 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest req, NpgsqlDataSourc
 
     return Results.Ok(new { success = true });
 }).RequireRateLimiting("auth");
-
-
-
 
 // ---------- Bookmarks ----------
 var bookmarks = app.MapGroup($"{apiBase}/account/bookmarks").RequireAuthorization();

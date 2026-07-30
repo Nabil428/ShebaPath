@@ -6,15 +6,37 @@
     <p>We couldn't find that post. <a routerLink="/blog">Back to the blog</a>.</p>
   </div>
 } @else if (post()) {
-  <article class="container page">
+  @if (post()!.coverImageUrl) {
+    <div class="hero-cover" [style.backgroundImage]="'url(' + post()!.coverImageUrl + ')'"></div>
+  }
+
+  <article class="container article-page">
     <a class="back-link" routerLink="/blog">&larr; All posts</a>
-    <div class="top-row">
-      <span class="date">{{ post()!.publishedAt | date: 'longDate' }}</span>
-      <button class="btn btn-outline notranslate" type="button" (click)="downloadPdf()">
-        ⬇ Download as PDF
-      </button>
-    </div>
+
+    <app-tag-chips [tags]="post()!.tags" />
     <h1>{{ post()!.title }}</h1>
-    <p class="body">{{ post()!.content }}</p>
+    <p class="excerpt">{{ post()!.excerpt }}</p>
+
+    <div class="byline">
+      <div class="avatar">SP</div>
+      <div class="byline-text">
+        <span class="author">ShebaPath Editorial</span>
+        <span class="meta">{{ post()!.publishedAt | date: 'longDate' }} · {{ readingTime() }} min read</span>
+      </div>
+      <div class="byline-actions">
+        <app-share-button [title]="post()!.title" [url]="pageUrl" />
+        <button class="btn btn-outline notranslate" type="button" (click)="downloadPdf()">⬇ PDF</button>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="article-body">
+      @for (para of post()!.content.split('\n'); track $index) {
+        @if (para.trim()) {
+          <p>{{ para }}</p>
+        }
+      }
+    </div>
   </article>
 }

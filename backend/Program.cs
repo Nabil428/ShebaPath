@@ -228,8 +228,80 @@ auth.MapPost("/logout", async (HttpContext http) =>
 {
     await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.Ok(new { success = true });
-});   
+});
 
+auth.MapPost("/forgot-password", async (ForgotPasswordRequest req, NpgsqlDataSource db, IHttpClientFactory httpFactory) =>
+{
+    var email = req.Email.Trim().ToLowerInvariant();
+    var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand(
+        "UPDATE bd_users SET reset_token = $1, reset_token_expires_at = now() + interval '1 hour' WHERE email = $2 RETURNING full_name",
+        conn);
+    cmd.Parameters.AddWithValue(token);
+    cmd.Parameters.AddWithValue(email);
+    await using var reader = await cmd.ExecuteReaderAsync();
+    var found = await reader.ReadAsync();
+    await reader.CloseAsync();
+
+    // Always return success, even if the email wasn't found — this avoids
+    // leaking which emails have accounts (a common security best practice).
+    if (found)
+    {
+        var resendApiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
+        var siteUrl = Environment.GetEnvironmentVariable("SITE_URL") ?? "https://shebapath.vercel.app/bd-services";
+        if (!string.IsNullOrEmpty(resendApiKey))
+        {
+            var resetLink = $"{siteUrl}/reset-password?token={token}";
+            var client = httpFactory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendApiKey);
+            var emailPayload = new
+            {
+                from = Environment.GetEnvironmentVariable("RESEND_FROM_EMAIL") ?? "ShebaPath <onboarding@resend.dev>",
+                to = new[] { email },
+                subject = "Reset your ShebaPath password",
+                html = $"<p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href=\"{resetLink}\">{resetLink}</a></p><p>If you didn't request this, you can ignore this email.</p>"
+            };
+            try
+            {
+                await client.PostAsJsonAsync("https://api.resend.com/emails", emailPayload);
+            }
+            catch
+            {
+                // Don't fail the request just because the email send failed —
+                // log server-side if you add logging later.
+            }
+        }
+    }
+
+    return Results.Ok(new { success = true });
+}).RequireRateLimiting("auth");
+
+auth.MapPost("/reset-password", async (ResetPasswordRequest req, NpgsqlDataSource db) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Token) || string.IsNullOrWhiteSpace(req.NewPassword))
+        return Results.BadRequest(new { error = "Token and new password are required." });
+    if (req.NewPassword.Length < 8)
+        return Results.BadRequest(new { error = "Password must be at least 8 characters." });
+
+    await using var conn = await db.OpenConnectionAsync();
+    await using var checkCmd = new NpgsqlCommand(
+        "SELECT id FROM bd_users WHERE reset_token = $1 AND reset_token_expires_at > now()", conn);
+    checkCmd.Parameters.AddWithValue(req.Token);
+    var userId = await checkCmd.ExecuteScalarAsync();
+    if (userId is null)
+        return Results.BadRequest(new { error = "This reset link is invalid or has expired." });
+
+    var hash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
+    await using var updateCmd = new NpgsqlCommand(
+        "UPDATE bd_users SET password_hash = $1, reset_token = NULL, reset_token_expires_at = NULL WHERE id = $2", conn);
+    updateCmd.Parameters.AddWithValue(hash);
+    updateCmd.Parameters.AddWithValue((int)userId);
+    await updateCmd.ExecuteNonQueryAsync();
+
+    return Results.Ok(new { success = true });
+}).RequireRateLimiting("auth");
 
 auth.MapGet("/me", async (HttpContext http, NpgsqlDataSource db) =>
 {
@@ -264,8 +336,6 @@ app.MapPatch($"{apiBase}/account", async (UpdateAccountRequest req, HttpContext 
     return Results.Ok(ReadUser(reader));
 }).RequireAuthorization();
 
-
-// DELETE endpoints
 app.MapDelete($"{apiBase}/account", async (HttpContext http, NpgsqlDataSource db) =>
 {
     if (http.User.Identity?.IsAuthenticated != true) return Unauthorized();
@@ -280,54 +350,32 @@ app.MapDelete($"{apiBase}/account", async (HttpContext http, NpgsqlDataSource db
     return Results.Ok(new { success = true });
 }).RequireAuthorization();
 
-
-// forgot-password endpoint
-auth.MapPost("/forgot-password", async (ForgotPasswordRequest req, NpgsqlDataSource db, IHttpClientFactory httpFactory) =>
+auth.MapPost("/forgot-password", async (ForgotPasswordRequest req, NpgsqlDataSource db) =>
 {
     var email = req.Email.Trim().ToLowerInvariant();
-    var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+    var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24));
 
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
-        "UPDATE bd_users SET reset_token = $1, reset_token_expires_at = now() + interval '1 hour' WHERE email = $2 RETURNING full_name",
+        "UPDATE bd_users SET reset_token = $1, reset_token_expires = now() + interval '30 minutes' WHERE email = $2",
         conn);
     cmd.Parameters.AddWithValue(token);
     cmd.Parameters.AddWithValue(email);
-    await using var reader = await cmd.ExecuteReaderAsync();
-    var found = await reader.ReadAsync();
-    await reader.CloseAsync();
+    var affected = await cmd.ExecuteNonQueryAsync();
 
-    if (found)
+    // No email service is configured yet, so the reset link is logged here
+    // instead of being emailed. Wire up a real email provider (e.g. Resend,
+    // SendGrid) here before relying on this in production.
+    if (affected > 0)
     {
-        var resendApiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY");
-        var siteUrl = Environment.GetEnvironmentVariable("SITE_URL") ?? "https://shebapath.vercel.app/bd-services";
-        if (!string.IsNullOrEmpty(resendApiKey))
-        {
-            var resetLink = $"{siteUrl}/reset-password?token={token}";
-            var client = httpFactory.CreateClient();
-            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", resendApiKey);
-            var emailPayload = new
-            {
-                from = Environment.GetEnvironmentVariable("RESEND_FROM_EMAIL") ?? "ShebaPath <onboarding@resend.dev>",
-                to = new[] { email },
-                subject = "Reset your ShebaPath password",
-                html = $"<p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href=\"{resetLink}\">{resetLink}</a></p><p>If you didn't request this, you can ignore this email.</p>"
-            };
-            try
-            {
-                await client.PostAsJsonAsync("https://api.resend.com/emails", emailPayload);
-            }
-            catch
-            {
-                // Log error if you have logging set up
-            }
-        }
+        Console.WriteLine($"[password reset] {email} -> https://shebapath.vercel.app/bd-services/reset-password?token={token}");
     }
 
-    return Results.Ok(new { success = true });
+    // Always return the same generic response, whether or not the email
+    // exists — this avoids leaking which emails are registered.
+    return Results.Ok(new { message = "If that email is registered, a reset link has been generated." });
 }).RequireRateLimiting("auth");
 
-//reset-password endpoint
 auth.MapPost("/reset-password", async (ResetPasswordRequest req, NpgsqlDataSource db) =>
 {
     if (string.IsNullOrWhiteSpace(req.Token) || string.IsNullOrWhiteSpace(req.NewPassword))
@@ -337,7 +385,7 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest req, NpgsqlDataSourc
 
     await using var conn = await db.OpenConnectionAsync();
     await using var checkCmd = new NpgsqlCommand(
-        "SELECT id FROM bd_users WHERE reset_token = $1 AND reset_token_expires_at > now()", conn);
+        "SELECT id FROM bd_users WHERE reset_token = $1 AND reset_token_expires > now()", conn);
     checkCmd.Parameters.AddWithValue(req.Token);
     var userId = await checkCmd.ExecuteScalarAsync();
     if (userId is null)
@@ -345,13 +393,27 @@ auth.MapPost("/reset-password", async (ResetPasswordRequest req, NpgsqlDataSourc
 
     var hash = BCrypt.Net.BCrypt.HashPassword(req.NewPassword);
     await using var updateCmd = new NpgsqlCommand(
-        "UPDATE bd_users SET password_hash = $1, reset_token = NULL, reset_token_expires_at = NULL WHERE id = $2", conn);
+        "UPDATE bd_users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL WHERE id = $2", conn);
     updateCmd.Parameters.AddWithValue(hash);
     updateCmd.Parameters.AddWithValue((int)userId);
     await updateCmd.ExecuteNonQueryAsync();
 
     return Results.Ok(new { success = true });
 }).RequireRateLimiting("auth");
+
+app.MapDelete($"{apiBase}/account", async (HttpContext http, NpgsqlDataSource db) =>
+{
+    if (http.User.Identity?.IsAuthenticated != true) return Unauthorized();
+    var userId = int.Parse(http.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    await using var conn = await db.OpenConnectionAsync();
+    await using var cmd = new NpgsqlCommand("DELETE FROM bd_users WHERE id = $1", conn);
+    cmd.Parameters.AddWithValue(userId);
+    await cmd.ExecuteNonQueryAsync();
+
+    await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.Ok(new { success = true });
+}).RequireAuthorization();
 
 // ---------- Bookmarks ----------
 var bookmarks = app.MapGroup($"{apiBase}/account/bookmarks").RequireAuthorization();
@@ -437,7 +499,7 @@ app.MapGet($"{apiBase}/guides/{{slug}}", async (string slug, NpgsqlDataSource db
     await using var conn = await db.OpenConnectionAsync();
     await using var cmd = new NpgsqlCommand(
         $@"SELECT g.id, g.slug, g.category_id, c.name AS category, g.title, g.summary, g.steps, g.requirements,
-           g.fees, g.processing_time, g.office, g.published_at, g.last_verified, g.keywords, g.meta_description,
+           g.fees, g.processing_time, g.office, g.published_at, g.last_verified, g.keywords, g.meta_description, g.featured_image,
            COALESCE((SELECT array_agg(t.name ORDER BY t.name) FROM guide_tags gt JOIN tags t ON t.id = gt.tag_id WHERE gt.guide_id = g.id), ARRAY[]::text[]) AS tag_names
            FROM bd_guides g JOIN categories c ON c.id = g.category_id WHERE g.slug = $1", conn);
     cmd.Parameters.AddWithValue(slug);
@@ -460,7 +522,8 @@ app.MapGet($"{apiBase}/guides/{{slug}}", async (string slug, NpgsqlDataSource db
         lastVerified = reader.GetDateTime(12),
         keywords = reader.IsDBNull(13) ? null : reader.GetString(13),
         metaDescription = reader.IsDBNull(14) ? null : reader.GetString(14),
-        tags = reader.GetFieldValue<string[]>(15)
+        featuredImage = reader.IsDBNull(15) ? null : reader.GetString(15),
+        tags = reader.GetFieldValue<string[]>(16)
     });
 });
 

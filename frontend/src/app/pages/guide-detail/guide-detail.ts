@@ -1,4 +1,3 @@
-import { ShareButtonComponent } from './../../Shared/share-button/share-button';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { Meta, Title } from '@angular/platform-browser';
@@ -9,7 +8,7 @@ import { PdfExportService } from '../../core/services/pdf-export.service';
 import { AuthService } from '../../core/services/auth.service';
 import { BookmarkService } from '../../core/services/bookmark.service';
 import { GuideDetail } from '../../core/models/models';
-
+import { ShareButtonComponent } from '../../Shared/share-button/share-button';
 import { TagChipsComponent } from '../../Shared/tag-chips/tag-chips';
 import { TranslateSyncService } from '../../core/services/translate-sync.service';
 import { GuideSummary } from '../../core/models/models';
@@ -75,11 +74,28 @@ export class GuideDetailPage implements OnInit {
   }
 
   private applySeoTags(guide: GuideDetail): void {
+    const description = guide.metaDescription || guide.summary;
+    const url = this.document.location.href;
+
     this.titleService.setTitle(`${guide.title} — ShebaPath`);
-    this.metaService.updateTag({ name: 'description', content: guide.metaDescription || guide.summary });
+    this.metaService.updateTag({ name: 'description', content: description });
     const keywordList = guide.keywords || guide.tags?.join(', ');
     if (keywordList) {
       this.metaService.updateTag({ name: 'keywords', content: keywordList });
+    }
+
+    // OpenGraph / Twitter Card — controls how this link previews on
+    // WhatsApp, Facebook, Twitter/X, etc. when someone shares it.
+    this.metaService.updateTag({ property: 'og:type', content: 'article' });
+    this.metaService.updateTag({ property: 'og:title', content: guide.title });
+    this.metaService.updateTag({ property: 'og:description', content: description });
+    this.metaService.updateTag({ property: 'og:url', content: url });
+    this.metaService.updateTag({ name: 'twitter:card', content: 'summary_large_image' });
+    this.metaService.updateTag({ name: 'twitter:title', content: guide.title });
+    this.metaService.updateTag({ name: 'twitter:description', content: description });
+    if (guide.featuredImage) {
+      this.metaService.updateTag({ property: 'og:image', content: guide.featuredImage });
+      this.metaService.updateTag({ name: 'twitter:image', content: guide.featuredImage });
     }
   }
 

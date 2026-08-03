@@ -26,6 +26,7 @@ export interface GuideDetail extends GuideSummary {
   requirements: string[];
   keywords?: string | null;
   metaDescription?: string | null;
+  featuredImage?: string | null;
 }
 
 export interface BlogSummary {
